@@ -1,0 +1,31 @@
+# --- Node / NX ---
+node_modules/
+.nx/
+dist/
+.vite/
+*.tsbuildinfo
+
+# --- .NET ---
+bin/
+obj/
+*.user
+
+# --- Secrets & config (per CLAUDE-dotnet.md: never commit appsettings) ---
+appsettings.json
+appsettings.*.json
+!appsettings.Example.json
+secrets/
+*.pem
+.env
+.env.*
+!.env.example
+
+# --- Logs ---
+logs/
+*.log
+
+# --- OS / editors ---
+.DS_Store
+Thumbs.db
+.vs/
+.idea/

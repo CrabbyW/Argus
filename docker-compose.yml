@@ -1,0 +1,32 @@
+# NOT the documented path any more. Local development runs on SQL Server LocalDB
+# (`pnpm run db:up` -> `sqllocaldb start MSSQLLocalDB`), because Docker Desktop's WSL2 VM
+# was consuming over half of the machine's RAM for what is a single database.
+#
+# Kept only as a fallback for a non-Windows machine, where LocalDB does not exist. To use it,
+# start this container and point ConnectionStrings:ArgusDatabase back at
+# "Server=localhost,1433;Database=Argus;User Id=sa;Password=...;TrustServerCertificate=True;".
+services:
+  db:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    container_name: argus-mssql
+    environment:
+      # SQL Server authentication (username + password), not a trusted connection —
+      # this is what `roadplan` specifies.
+      ACCEPT_EULA: "Y"
+      MSSQL_SA_PASSWORD: "${MSSQL_SA_PASSWORD:-Argus_Dev_Pwd1!}"
+      MSSQL_PID: Developer
+    ports:
+      - "1433:1433"
+    volumes:
+      - argus-mssql-data:/var/opt/mssql
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P "$$MSSQL_SA_PASSWORD" -C -Q "SELECT 1" || exit 1
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
+
+volumes:
+  argus-mssql-data:

@@ -1,0 +1,8 @@
+packages:
+  - 'apps/*'
+  - 'libs/*'
+
+# Both need their postinstall to fetch/link a native binary.
+allowBuilds:
+  esbuild: true
+  nx: true

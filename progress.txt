@@ -1,0 +1,203 @@
+=====================================================================
+ ARGUS - PROGRESS LOG
+=====================================================================
+ Poslední aktualizace: 2026-07-29
+ Kde jsme skončili a čím zítra navázat.
+=====================================================================
+
+
+---------------------------------------------------------------------
+KDE JSME (aktuální stav)
+---------------------------------------------------------------------
+
+Fáze: KOSTRA CELÉ APLIKACE POSTAVENA (Phase 1-6 hotové v kódu).
+      Chybí JEDINÁ věc: rozjet databázi a spustit to naživo.
+
+HOTOVO - dokumentace a plány (dle CLAUDE-planning-standards.MD):
+  [x] ai-implementation-plan/1_argus_demo_build.md .... hlavní plán (checkboxy aktualizované)
+  [x] ai-implementation-plan/2_environment_setup.md
+  [x] ai-implementation-plan/3_nx_monorepo_skeleton.md
+  [x] ai-implementation-plan/4_ef_core_model_and_migration.md  <- ANALÝZA DAT. MODELU
+  [x] ai-implementation-plan/5_rest_api_crud.md
+  [x] ai-implementation-plan/6_frontend_installations_ui.md
+  [x] ai-implementation-plan/7_authentication_jwt.md
+  [x] ai-implementation-plan/8_deploy_packaging.md
+  [x] README.md ...................................... jak to spustit
+
+HOTOVO - kód:
+  [x] NX monorepo + pnpm workspace (package.json, nx.json, pnpm-workspace.yaml)
+  [x] Backend .NET 10 (apps/netcorebackends/Argus.Api):
+        - 8 entit + IEntityTypeConfiguration ke každé
+        - ArgusDbContext, migrace "InitialCreate" (vytvoří 8 tabulek)
+        - seed dat (GAIIS1-3, ProAssistNet, VipSprava, 5 instalací, user admin)
+        - služby, statické mappery, DTO, filtr s tříděním a stránkováním
+        - controllery: Installations, Lookups, Auth, Health
+        - JWT přihlášení, PBKDF2 hashování hesel
+        - log4net, GlobalExceptionHandlerMiddleware
+        - Swagger na /swagger
+        -> BUILD OK, 0 chyb, 0 varování
+  [x] Frontend React 19 + TS + Fluent UI + Vite (apps/frontend):
+        - přihlašovací obrazovka
+        - seznam instalací: hledání, 3 filtry, třídění, stránkování, mazání
+        - dialog pro založení/úpravu (číselníky = dropdowny přes ID)
+        - správa všech 5 číselníků
+        -> BUILD OK (tsc + vite prošly)
+  [x] databáze: SQL Server LocalDB (MSSQLLocalDB), nativně, BEZ Dockeru
+        - docker-compose.yml zůstal jen jako fallback pro ne-Windows stroj
+  [x] .gitignore (appsettings*.json a secrets/ se necommitují)
+
+HOTOVO - rozjeto naživo (2026-07-29):
+  [x] ODCHOD OD DOCKERU: Docker Desktop žral přes 50 % paměti kvůli WSL2 VM,
+        a to kvůli jediné věci - databázi. Přešlo se na SQL Server LocalDB,
+        která už na stroji byla (verze 15.0, engine SQL Serveru 2019).
+        Reálná spotřeba: sqlservr ~147 MB, startuje na vyžádání.
+        Změnily se jen 4 věci, kód aplikace ani migrace vůbec:
+          - appsettings.Development.json + appsettings.Example.json (conn. string)
+          - Database/ArgusDbContextFactory.cs (design-time fallback, jinak
+            `dotnet ef` mlčky padal na TCP timeout proti localhost,1433)
+          - package.json: db:up/db:down -> sqllocaldb start/stop
+        POZOR - VĚDOMÁ ODCHYLKA od roadplanu: LocalDB neumí SQL autentizaci
+        (uživatel+heslo), jede výhradně přes Windows účet (Trusted_Connection).
+        Původní požadavek na SQL auth vycházel z kontejneru; lokálně nejde splnit.
+  [x] pnpm run db:up -> LocalDB "MSSQLLocalDB" Running
+  [x] dotnet ef database update -> migrace InitialCreate aplikovaná na LocalDB
+  [x] pnpm run dev:api -> migrace aplikovaná, seed proběhl,
+        API na http://localhost:5080 ("Argus API started.")
+  [x] Ověřeno přes API: /api/health = Healthy, login admin OK (JWT),
+        seznam vrací 5 instalací, číselníky OK,
+        create -> update -> delete (měkké) prošlo, smazaný řádek zmizel ze seznamu
+  [x] pnpm run dev:frontend -> Vite na http://localhost:4200/
+        (stará zbloudilá instance zabíjena, port uvolněn a restartováno na 4200)
+        proxy ověřená: http://localhost:4200/api/health = Healthy
+
+HOTOVO - revize a přestavba UI (2026-07-29, plán 9):
+  [x] NALEZENA A OPRAVENA ZTRÁTA DAT: přejmenování DNS endpointu v UI tiše
+        shodilo příznak IsLoadBalancer (a editace stage resetovala SortOrder).
+        Příčina: LookupItemDto při čtení ta pole nevracel, ale LookupUpsertDto
+        je při zápisu vyžadoval -> UI nemělo co poslat zpět a posílalo 0/false.
+        Ověřeno pokusem: starý payload příznak shodil, nový ho zachoval.
+  [x] 401 nyní opravdu ukončí session (dřív zůstal přihlášený shell s chybami)
+  [x] Chyba načtení číselníků se zobrazí (dřív jen prázdné dropdowny)
+  [x] Routing přes react-router (byl v závislostech, ale nepoužíval se):
+        /installations, /installations/:id, /installations/:id/view,
+        /lookups/:kind, /repositories, 404. Filtry jsou v query stringu,
+        takže odkaz na filtrovaný pohled jde poslat a Zpět funguje.
+  [x] window.confirm nahrazen Fluent dialogem, přidány toasty, favicona,
+        error boundary; tabulka při načítání nemizí, jen ztmavne
+  [x] Přestavěný layout: hlavička stránky + popsaná filtrační karta,
+        tmavý režim podle nastavení systému
+  [x] Doplněny filtry, které API umělo, ale UI nenabízelo: DNS endpoint,
+        architektura, aktivní. Ověřeno: dnsEndpointId=1 (paha.ga.local)
+        vrací GAIIS1 i GAIIS2 - hlavní otázka ze zadání.
+  [x] PhysicalPath ve výpisu + read-only detail instalace
+  [x] AppRepositories: doplněn CELÝ backend (controller, služba, DTO -
+        dosud neexistovaly žádné endpointy) i správa ve frontendu
+
+ZBÝVÁ:
+  [ ] Proklikat UI v prohlížeči - kód je přeložený a API otestované
+        requesty, ale nikdo to ještě neviděl v prohlížeči
+  [ ] Smazat docker-compose.yml a .env.example (mně to zablokoval
+        bezpečnostní klasifikátor): rm docker-compose.yml .env.example
+
+
+---------------------------------------------------------------------
+CÍL - CO JE POTŘEBA UDĚLAT, ABY TO CELÉ FUNGOVALO
+---------------------------------------------------------------------
+
+CÍL: Argus běží celý naživo od prohlížeče až po databázi. Člověk otevře
+     http://localhost:4200, přihlásí se a v UI zvládne celý životní cyklus
+     evidence instalací (založit / upravit / smazat / najít) bez toho, aby
+     musel sáhnout na Swagger nebo SQL.
+
+Splněno, až projde všech pět bodů:
+
+  1. Předpoklady poběží
+     - pnpm run db:up        -> LocalDB MSSQLLocalDB ve stavu Running
+     - pnpm run dev:api      -> migrace + seed, http://localhost:5080
+     - pnpm run dev:frontend -> http://localhost:4200
+     (vše už jednou proběhlo 2026-07-29, jde o zopakování po restartu)
+
+  2. Přihlášení přes UI
+     - admin / Argus2026 projde, uloží se JWT, přesměruje na seznam
+     - špatné heslo skončí chybovou hláškou, ne bílou stránkou
+
+  3. Seznam instalací v prohlížeči
+     - načte se 5 seed řádků
+     - hledání, 3 filtry, třídění podle sloupců a stránkování reálně mění výsledek
+
+  4. CRUD přes UI
+     - založení nové instalace přes dialog (číselníky jako dropdowny)
+     - editace uloží změnu a seznam ji ukáže
+     - smazání je měkké (IsEnabled = 0) a řádek zmizí ze seznamu
+
+  5. Správa číselníků přes UI
+     - všech 5 číselníků (Machines, Applications, AppStages,
+       ProcessorArchitectures, DnsEndpoints) jde číst i editovat
+     - přejmenování stroje se projeví u všech dotčených instalací
+       (to je hlavní pointa datového modelu - ověřit, že to platí i v UI)
+
+MIMO tento cíl (vědomě): Dockerfily pro API a frontend, generovaný TS klient,
+Tags jako vlastní tabulka, nasazení mimo localhost, reálná data.
+
+
+---------------------------------------------------------------------
+ZÍTRA - PŘESNĚ ODKUD ZAČÍT
+---------------------------------------------------------------------
+
+  Docker se NESPOUŠTÍ. Žádný ruční krok před startem není potřeba.
+
+  1. Rovnou:
+        pnpm run db:up          (sqllocaldb start MSSQLLocalDB)
+        pnpm run dev:api        (http://localhost:5080, Swagger na /swagger)
+        pnpm run dev:frontend   (http://localhost:4200)
+     Přihlášení: admin / Argus2026
+     (heslo je v apps/netcorebackends/Argus.Api/appsettings.Development.json
+      pod Seed:AdminPassword)
+
+     POZOR: DbSeeder.SeedUsersAsync je idempotentní - když už nějaký uživatel
+     existuje, skončí hned a heslo v konfiguraci NEMÁ žádný účinek. Pro změnu
+     hesla je potřeba smazat řádek z ApplicationUsers a API restartovat.
+
+
+---------------------------------------------------------------------
+DATOVÝ MODEL (výsledek analýzy - proč zrovna takhle)
+---------------------------------------------------------------------
+
+  5 číselníků:  Machines, Applications, AppStages,
+                ProcessorArchitectures, DnsEndpoints
+  hlavní:       Installations (5x cizí klíč + vlastní hodnoty)
+  navíc:        AppRepositories (patří k Applications, ne k instalaci)
+                ApplicationUser (přihlašování)
+  = celkem 8 tabulek
+
+  Klíčový důvod pro DnsEndpoints jako vlastní tabulku: jedna DNS adresa
+  může být load balancer před více stroji. V seed datech je přesně tenhle
+  případ (paha.ga.local -> GAIIS1 i GAIIS2).
+
+  DnsEndpointId je nullable - služba na pozadí veřejnou adresu nemá.
+  Mazání je vždy "měkké" (IsEnabled = 0), řádek zůstává.
+
+  Podrobné odůvodnění: ai-implementation-plan/4_ef_core_model_and_migration.md
+
+
+---------------------------------------------------------------------
+POZNÁMKY / VĚDOMÉ ODCHYLKY
+---------------------------------------------------------------------
+
+  - Tags: zůstává text, ne vlastní tabulka (roadplan to sám značí jako
+    "Tbd: PHASE2"). Je to jeden sloupec, přesun bude levný.
+  - CLAUDE-dotnet.md je ŠABLONA z jiného projektu (TrafficEvent/DATEX).
+    Konvence se dodržely, ale tři věci nešlo převzít doslova a jsou
+    zdůvodněné v plánech: Negotiate/Windows autentizace (Argus má
+    jméno+heslo), DatexPush endpointy (Argus žádné nemá), sdílené RSA
+    klíče mezi dvěma backendy (Argus má jeden backend -> HMAC klíč).
+  - Docker se nepoužívá vůbec - ani pro databázi (LocalDB), ani pro appky
+    (pnpm dev). Důvod: spotřeba paměti, viz sekce výše. Plán 8 popisuje
+    ještě starou compose cestu.
+  - Generovaný TS klient z [EndpointName] není zapojený do buildu;
+    frontend má ručně psaný typovaný klient. Atributy jsou ale všude,
+    takže generování jde doplnit bez zásahu do controllerů.
+
+=====================================================================
+ Konec. Docker se nepoužívá. Rovnou: pnpm run db:up -> dev:api -> dev:frontend.
+=====================================================================

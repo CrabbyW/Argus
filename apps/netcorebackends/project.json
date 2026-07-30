@@ -1,0 +1,29 @@
+{
+  "name": "argus-api",
+  "$schema": "../../node_modules/nx/schemas/project-schema.json",
+  "projectType": "application",
+  "sourceRoot": "apps/netcorebackends/Argus.Api",
+  "targets": {
+    "serve": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "dotnet run --project Argus.Api/Argus.Api.csproj",
+        "cwd": "apps/netcorebackends"
+      }
+    },
+    "build": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "dotnet build",
+        "cwd": "apps/netcorebackends"
+      }
+    },
+    "migrate": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "dotnet ef database update --project Argus.Api/Argus.Api.csproj",
+        "cwd": "apps/netcorebackends"
+      }
+    }
+  }
+}

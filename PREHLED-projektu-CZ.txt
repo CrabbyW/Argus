@@ -1,0 +1,164 @@
+=====================================================================
+ PROJEKT ARGUS – KOMPLETNÍ PŘEHLED PRO ZAČÁTEČNÍKA (česky)
+=====================================================================
+
+Tento soubor shrnuje VŠE, co ve složce Argus zatím je, co to znamená,
+a co musíš jako začátečník pochopit, než se pustíme do stavby.
+
+---------------------------------------------------------------------
+0) NEJDŮLEŽITĚJŠÍ VĚC NA ÚVOD
+---------------------------------------------------------------------
+
+Ve složce zatím NENÍ ŽÁDNÝ KÓD ani hotová aplikace.
+Jsou tam jen TŘI textové soubory = poznámky a pravidla.
+Popisují, CO se má postavit a JAK se to má stavět.
+
+Jinak řečeno: máš zatím "plán stavby domu", ne postavený dům.
+
+Soubory ve složce:
+  - roadplan .................... zadání projektu (co má appka umět)
+  - CLAUDE-planning-standards.MD  pravidla, jak má AI plánovat práci
+  - CLAUDE-dotnet.md ........... pravidla, jak psát backend (C#)
+
+---------------------------------------------------------------------
+1) CO JE ARGUS (K ČEMU TO BUDE)
+---------------------------------------------------------------------
+
+Argus je nástroj pro SLEDOVÁNÍ, KDE JE CO NAINSTALOVÁNO.
+Něco jako evidence / inventář: která aplikace, v jaké verzi (stage),
+na kterém serveru (stroji), na jaké webové adrese, v jaké složce atd.
+
+Příklad jednoho záznamu (jedné instalace):
+  MachineName ............ jméno stroje/serveru (např. GAIIS1)
+  AppName ................ jméno aplikace (např. ProAssistNet)
+  AppStageName ........... fáze/verze (Staging | RC0 | Main | PenTest | Mirror)
+  ProcessorArchitecture .. architektura (x86 / x64 / arm ...)
+  DnsName ................ webová adresa (https://paha.ga.local ...)
+  RootPath ............... cesta v rámci webu (/ , /proassistnet.rc0 ...)
+  Tags ................... štítky
+  AppRepositories ........ odkud se kód bere (svn:// , git:// , bitbucket://)
+  PhysicalPath ........... fyzická cesta na disku (c:\...\...)
+  ValidFromDate / ValidToDate . od kdy do kdy záznam platí
+  IsEnabled .............. příznak "měkkého smazání" (0 = skryté, 1 = aktivní)
+
+---------------------------------------------------------------------
+2) TECHNOLOGIE (Z ČEHO SE TO POSTAVÍ) – SLOVNÍČEK
+---------------------------------------------------------------------
+
+Nelekej se názvů. Tady je každý vysvětlený lidsky:
+
+STRUKTURA PROJEKTU
+  NX monorepo ... jeden velký společný projekt (repozitář), ve kterém
+                  je zároveň backend i frontend. NX to pomáhá řídit.
+  pnpm .......... "instalátor" knihoven (cizího hotového kódu). Podobné
+                  jako npm, jen rychlejší a úspornější.
+  node .......... prostředí, ve kterém běží nástroje frontendu.
+
+DATABÁZE (kde jsou uložená data)
+  MS SQL Server . databázový server od Microsoftu.
+  Používá se LocalDB (odlehčená verze, startuje na vyžádání, ~150 MB).
+  Přihlášení    . přes účet přihlášeného Windows uživatele
+                  ("trusted connection"). LocalDB jiný způsob neumí -
+                  původní záměr byl username+heslo, ten platil pro
+                  databázi v kontejneru. Docker se nepoužívá (žral
+                  přes polovinu paměti stroje).
+  Spuštění      . pnpm run db:up
+  Nástroj na koukání do DB: SQL Management Studio NEBO rozšíření ve VS Code.
+
+BACKEND (mozek aplikace, běží na serveru)
+  C# (Csharp) ... programovací jazyk.
+  .NET Core 10 .. platforma, na které backend běží.
+  Entity Framework "code-first" ...
+                  Tabulky databáze POPÍŠEŠ v C# kódu a framework z toho
+                  sám VYTVOŘÍ skutečné tabulky. Nekreslíš tabulky ručně.
+  Migrace ....... "verzované změny databáze". Když upravíš návrh v kódu,
+                  migrace bezpečně upraví i reálnou databázi.
+
+FRONTEND (to, co uživatel vidí v prohlížeči)
+  React + TSX ... knihovna pro tvorbu webového rozhraní; TSX = TypeScript.
+  TypeScript .... JavaScript s hlídáním typů (méně chyb).
+  Fluent UI ..... hotové vzhledové komponenty od Microsoftu (tlačítka,
+                  tabulky, menu) – ať to nemusíš kreslit od nuly.
+  Vite .......... "bundler" = nástroj, který spojí a rychle servíruje
+                  frontend během vývoje.
+
+PŘIHLAŠOVÁNÍ
+  Tabulka ApplicationUser v databázi, klasické jméno + heslo.
+
+---------------------------------------------------------------------
+3) DŮLEŽITÝ NÁVRHÁŘSKÝ PRINCIP (ROZPAD DO VÍCE TABULEK)
+---------------------------------------------------------------------
+
+Zadání říká: NEDÁVAT všechno do jedné obří tabulky.
+Místo toho rozdělit data do VÍCE propojených tabulek.
+
+Proč? Např. jedna DNS adresa (load balancer) může patřit více strojům.
+Kdyby bylo vše v jedné tabulce, opakovala by se pořád dokola a špatně
+by se to udržovalo.
+
+Řešení = odkazování přes ID (číselné identifikátory):
+  Tabulka Machines:      Id | MachineName
+                          27 | GAIIS1
+                          28 | GAIIS2
+
+  Tabulka instalací:     MachineId | AppNameId | AppStageNameId | ...
+                          27        | 5         | 2              | ...
+                          28        | 5         | 2              | ...
+
+Místo opakování textu "GAIIS1" se všude odkazuje jen na číslo 27.
+Tomu se v databázích říká "normalizace". Je to standardní správný postup.
+(Přesné rozdělení do tabulek se udělá jako první krok analýzy.)
+
+---------------------------------------------------------------------
+4) CO ZNAMENAJÍ SOUBORY CLAUDE-*.md
+---------------------------------------------------------------------
+
+Tyto dva soubory nejsou pro tebe ke čtení jako uživatele –
+jsou to POKYNY PRO AI (pro Clauda), jak má pracovat a psát kód.
+
+A) CLAUDE-planning-standards.MD  = "Jak se plánuje práce"
+   - Před každou větší prací (víc souborů / nová funkce) musí AI
+     nejdřív napsat PLÁNOVACÍ SOUBOR.
+   - Plány se ukládají do složky a číslují se za sebou (1, 2, 3...).
+   - Postup se sleduje odškrtávacími políčky:  [ ] = nehotovo, [x] = hotovo.
+   - Cíl: přehled, dohledatelnost, malé bezpečné kroky.
+
+B) CLAUDE-dotnet.md  = "Jak psát backend v C#"
+   - Detailní pravidla psaní kódu (struktura, logování přes log4net,
+     jednotný formát odpovědí API, organizace databázových tříd...).
+   - POZOR – DŮLEŽITÉ UPOZORNĚNÍ:
+     Tento soubor mluví o věcech jako "TrafficEvent", "DatexPush",
+     dopravní data (DATEX II). To NEPATŘÍ k Argusu (evidence instalací).
+     => Soubor je zjevně ZKOPÍROVANÝ Z JINÉHO PROJEKTU jako šablona.
+        Bude potřeba ho později upravit, aby seděl na Argus.
+
+---------------------------------------------------------------------
+5) CO SI MÁŠ HLAVNĚ ODNÉST (SHRNUTÍ)
+---------------------------------------------------------------------
+
+  1. Zatím máš POUZE poznámky a pravidla, ne funkční program.
+  2. Argus = evidence "kde je co nainstalováno".
+  3. Stack je "microsoftí": C# backend + React frontend + SQL Server.
+  4. Databáze se popíše v C# (code-first) a rozpadne do více tabulek.
+  5. Soubory CLAUDE-*.md jsou návod pro AI, ne pro koncového uživatele.
+  6. CLAUDE-dotnet.md je cizí šablona – bude se muset přizpůsobit.
+
+---------------------------------------------------------------------
+6) LOGICKÉ DALŠÍ KROKY (AŽ BUDEŠ CHTÍT)
+---------------------------------------------------------------------
+
+  Krok 1: Analýza dat – rozdělit atributy instalace do konkrétních
+          tabulek (návrh databáze).
+  Krok 2: Založit prázdný NX monorepo projekt (kostra složek).
+  Krok 3: Rozjet SQL Server (LocalDB - viz sekce DATABÁZE výše).
+  Krok 4: Backend v C# – vytvořit entity (tabulky) a první migraci.
+  Krok 5: Frontend v Reactu – jednoduchý seznam instalací.
+  Krok 6: Přihlašování (ApplicationUser).
+
+  Nemusíš nic z toho umět dopředu – půjdeme krok po kroku a u každého
+  ti vysvětlím, co a proč děláme.
+
+=====================================================================
+ Konec přehledu. Nic v projektu jsem neměnil, jen jsem vytvořil tento
+ souhrnný soubor. Až budeš chtít, začneme Krokem 1.
+=====================================================================

@@ -1,0 +1,7 @@
+# One line ending in the repository, whatever the checkout platform does locally.
+* text=auto eol=lf
+
+# Binary and generated files git must not touch.
+*.png binary
+*.svg text eol=lf
+pnpm-lock.yaml linguist-generated=true -diff

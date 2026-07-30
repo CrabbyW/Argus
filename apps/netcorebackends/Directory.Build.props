@@ -1,0 +1,21 @@
+<Project>
+
+  <!-- Assembly metadata centralized for every .NET project in the monorepo. -->
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <LangVersion>latest</LangVersion>
+    <TreatWarningsAsErrors>false</TreatWarningsAsErrors>
+
+    <Product>Argus</Product>
+    <Company>Argus</Company>
+    <Authors>Argus Team</Authors>
+    <Description>Argus - installation inventory (where is what installed).</Description>
+    <Version>0.1.0</Version>
+    <AssemblyVersion>0.1.0.0</AssemblyVersion>
+    <FileVersion>0.1.0.0</FileVersion>
+    <Copyright>Copyright (c) Argus</Copyright>
+  </PropertyGroup>
+
+</Project>

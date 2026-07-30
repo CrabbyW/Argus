@@ -1,0 +1,20 @@
+{
+  "name": "argus",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Argus - installation inventory (where is what installed)",
+  "packageManager": "pnpm@11.17.0",
+  "scripts": {
+    "dev": "nx run-many -t serve -p argus-frontend argus-api",
+    "dev:frontend": "nx run argus-frontend:serve",
+    "dev:api": "nx run argus-api:serve",
+    "build": "nx run-many -t build",
+    "lint": "nx run-many -t lint",
+    "db:up": "sqllocaldb start MSSQLLocalDB",
+    "db:down": "sqllocaldb stop MSSQLLocalDB",
+    "db:migrate": "dotnet ef database update --project apps/netcorebackends/Argus.Api"
+  },
+  "devDependencies": {
+    "nx": "^21.2.0"
+  }
+}

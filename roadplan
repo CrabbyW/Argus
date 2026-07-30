@@ -1,0 +1,161 @@
+ARGUS
+
+# Cil / Objective
+
+ARGUS je jediná autoritativní odpověď na otázku "kde je tahle aplikace vlastně nainstalovaná?"
+
+Dnes ta odpověď žije v hlavách lidí, v excelech a v IIS konzolích na jednotlivých serverech.
+Zastará ve chvíli, kdy se přejmenuje stroj, povýší stage nebo přesměruje DNS jméno - a nikdo si
+toho nevšimne, dokud deploy nepřistane tam, kde neměl. ARGUS tohle nahrazuje jednou dotazovatelnou
+evidencí: ke každé instalaci která APLIKACE, v jaké STAGE, na jakém STROJI, pod jakým DNS JMÉNEM
+a CESTOU, na jaké ARCHITEKTUŘE, platná MEZI JAKÝMI DATY.
+
+Je to systém záznamu pro lidi, kteří tyhle aplikace nasazují a provozují - čte se často, píše
+zřídka. Není to nástroj na deploy. ARGUS zaznamenává realitu, nemění ji.
+
+Jak vypadá úspěch:
+
+  - Jakýkoli deploy/provozní dotaz - které stroje obsluhují paha.ga.local? kde běží RC0
+    ProAssistNetu? co je ještě nainstalované na GAIIS2? - je z ARGUSu zodpovězený v řádu sekund.
+  - Sdílené údaje jsou uložené právě jednou. Přejmenování stroje nebo přesměrování DNS endpointu
+    je editace jednoho řádku, kterou všechny dotčené instalace převezmou okamžitě.
+  - Historie přežije. Vyřazení = měkké smazání + ValidToDate, takže "co tu bylo minulý kvartál?"
+    je pořád zodpovědditelné.
+  - Evidence zůstává aktuální, protože udržovat ji je levnější než obcházet ji - jedna obrazovka,
+    hledání a filtry, žádné ceremonie.
+
+Vědomě MIMO rozsah: provisioning, deploy nebo konfigurace čehokoli; monitoring dostupnosti či
+zdraví nasazených aplikací; automatické zjišťování instalací (auto-discovery). ARGUS edituje
+člověk přes vlastní UI a API.
+
+# NX monorepo
+
+nx, node
+pnpm as package manager
+
+# Database
+
+MSSSQL database, standard sql server authentication (not trusted connection)
+/ download SQL server developer edition NEBO nejak to rozjet v dockeru
+Sql management studio NEBO vscode extension
+
+# Backend
+
+Csharp, netcore10
+Entity framework code first - tzn. database design is in csharp, and netcore creates db tables from it
+netcore db migrations
+
+# Frontend
+
+React tsx
+fluent ui components / https://storybooks.fluentui.dev/react/?path=/docs/concepts-introduction--docs
+Vite bundler
+
+# Authentication
+
+db tabulka ApplicationUser, classic login via username + password
+
+# Objective co to ma delat
+
+Sledovani kde je co nainstalovano
+
+Atributy jedné instalace:
+
+MachineName                     GAIIS1
+AppName                         ProAssistNet
+AppStageName                    [Staging | RC0 | Main | PenTest | Mirror]
+ProcessorArchitecture           x86/x64/arm/.....
+DnsName                         https://paha.ga.local | https://vipsprava.1220.cz
+RootPath                        / | /proassistnet.rc0 | /proassistnet.staging | /proassistmirror
+Tags                            Tbd: PHASE2
+AppRepositories                 [svn://..... git:// ... bitbucket:// ...]
+IsActive                        [x]
+PhysicalPath                    c:\asdasda\asdadsa\
+ValidFromDate                   YYYYMMDD
+ValidToDate                     YYYYMMDD
+IsEnabled                       [0 | 1] / soft delete flag
+
+# Toto nesmi byt vse v jedne db tabulce, ale musi se to rozpadnout
+na N tabulek (necht claude udela analyzu), protoze napr. DnsName muze ukazovat na load balancer
+
+GAIIS1 / RC0 / x64 / https://paha.ga.local / ...
+GAIIS2 / RC0 / x64 / https://paha.ga.local / ...
+GAIIS3 / RC0 / x64 / https://vipsprava.1220.cz / ...
+
+---------------
+Machines [Id, MachineName]
+27 ... GAIIS1
+28 ... GAIIS2
+
+
+MachineId, AppNameId, AppStageNameId, ....
+
+27 / 5 / 2 / 4
+28 / 5 / 2 / 4
+
+PROJECT ARGUS
+
+# NX monorepo
+
+nx, node
+pnpm as package manager
+
+# Database
+
+MSSSQL database, standard sql server authentication (not trusted connection)
+/ download SQL server developer edition NEBO nejak to rozjet v dockeru
+Sql management studio NEBO vscode extension
+
+# Backend
+
+Csharp, netcore10
+Entity framework code first - tzn. database design is in csharp, and netcore creates db tables from it
+netcore db migrations
+
+# Frontend
+
+React tsx
+fluent ui components / https://storybooks.fluentui.dev/react/?path=/docs/concepts-introduction--docs
+Vite bundler
+
+# Authentication
+
+db tabulka ApplicationUser, classic login via username + password
+
+# Objective co to ma delat
+
+Sledovani kde je co nainstalovano
+
+Atributy jedné instalace:
+
+MachineName                     GAIIS1
+AppName                         ProAssistNet
+AppStageName                    [Staging | RC0 | Main | PenTest | Mirror]
+ProcessorArchitecture           x86/x64/arm/.....
+DnsName                         https://paha.ga.local | https://vipsprava.1220.cz
+RootPath                        / | /proassistnet.rc0 | /proassistnet.staging | /proassistmirror
+Tags                            Tbd: PHASE2
+AppRepositories                 [svn://..... git:// ... bitbucket:// ...]
+IsActive                        [x]
+PhysicalPath                    c:\asdasda\asdadsa\
+ValidFromDate                   YYYYMMDD
+ValidToDate                     YYYYMMDD
+IsEnabled                       [0 | 1] / soft delete flag
+
+# Toto nesmi byt vse v jedne db tabulce, ale musi se to rozpadnout
+na N tabulek (necht claude udela analyzu), protoze napr. DnsName muze ukazovat na load balancer
+
+GAIIS1 / RC0 / x64 / https://paha.ga.local / ...
+GAIIS2 / RC0 / x64 / https://paha.ga.local / ...
+GAIIS3 / RC0 / x64 / https://vipsprava.1220.cz / ...
+
+---------------
+Machines [Id, MachineName]
+27 ... GAIIS1
+28 ... GAIIS2
+
+
+MachineId, AppNameId, AppStageNameId, ....
+
+27 / 5 / 2 / 4
+28 / 5 / 2 / 4
