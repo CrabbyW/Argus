@@ -277,7 +277,10 @@ public class InstallationService : IInstallationService
 
     /// <summary>
     /// Mirrors the unique index so the user gets a readable message instead of a
-    /// raw SQL constraint violation.
+    /// raw SQL constraint violation. Both sides deliberately ignore decommissioned rows:
+    /// the index is filtered on <c>IsEnabled = 1</c>, and the query filter on
+    /// <see cref="ArgusDbContext.Installations"/> hides the same rows here. Installing
+    /// something again after it was retired is a new period, not a duplicate.
     /// </summary>
     private async Task ValidateUniqueDeploymentAsync(InstallationUpsertDto dto, int? excludeId)
     {

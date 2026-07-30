@@ -4,6 +4,7 @@ using Argus.Api.Database;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 #nullable disable
@@ -11,9 +12,11 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace Argus.Api.Database.Migrations
 {
     [DbContext(typeof(ArgusDbContext))]
-    partial class ArgusDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260730091040_FilterDeploymentUniqueIndexToLiveRows")]
+    partial class FilterDeploymentUniqueIndexToLiveRows
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder

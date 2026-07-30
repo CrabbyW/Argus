@@ -49,9 +49,14 @@ public class InstallationConfiguration : IEntityTypeConfiguration<Installation>
                .IsRequired(false)
                .OnDelete(DeleteBehavior.SetNull);
 
-        // The same app+stage cannot sit twice at the same path on the same machine.
+        // The same app+stage cannot sit twice at the same path on the same machine — but only
+        // among rows that are still there. Decommissioning is a soft delete, so without the
+        // filter the retired row keeps its slot forever and installing the same thing again
+        // (an ordinary event in an inventory, and what ValidFromDate/ValidToDate exist to
+        // record) fails on a constraint the user cannot see or clear.
         builder.HasIndex(x => new { x.MachineId, x.ApplicationId, x.AppStageId, x.RootPath })
                .IsUnique()
+               .HasFilter("[IsEnabled] = 1")
                .HasDatabaseName("UX_Installations_Deployment");
 
         // Supports the common "what runs on this machine / where is this app" queries.
