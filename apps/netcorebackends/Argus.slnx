@@ -1,3 +1,4 @@
 <Solution>
   <Project Path="Argus.Api/Argus.Api.csproj" />
+  <Project Path="Argus.Api.Tests/Argus.Api.Tests.csproj" />
 </Solution>
