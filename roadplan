@@ -1,4 +1,4 @@
-ARGUS
+PROJECT ARGUS
 
 # Cil / Objective
 
@@ -28,134 +28,82 @@ Vědomě MIMO rozsah: provisioning, deploy nebo konfigurace čehokoli; monitorin
 zdraví nasazených aplikací; automatické zjišťování instalací (auto-discovery). ARGUS edituje
 člověk přes vlastní UI a API.
 
-# NX monorepo
+# Technologie
 
-nx, node
-pnpm as package manager
+NX monorepo          nx, node, pnpm jako package manager
+Database             MSSQL, standard sql server authentication (ne trusted connection)
+                     SQL Server Developer edition nebo docker; SSMS nebo vscode extension
+Backend              C#, netcore10, Entity Framework code first (schéma je v C#, EF vytvoří
+                     tabulky), netcore db migrations
+Frontend             React tsx, Fluent UI, Vite bundler
+                     https://storybooks.fluentui.dev/react/?path=/docs/concepts-introduction--docs
+Authentication       db tabulka ApplicationUser, klasický login username + password
 
-# Database
+# Datový model
 
-MSSSQL database, standard sql server authentication (not trusted connection)
-/ download SQL server developer edition NEBO nejak to rozjet v dockeru
-Sql management studio NEBO vscode extension
+Atributy jedné instalace nesmí být v jedné tabulce - musí se rozpadnout na N tabulek, protože
+sdílené údaje se opakují (DnsName může ukazovat na load balancer před několika stroji):
 
-# Backend
+    GAIIS1 / RC0 / x64 / https://paha.ga.local / ...
+    GAIIS2 / RC0 / x64 / https://paha.ga.local / ...
+    GAIIS3 / RC0 / x64 / https://vipsprava.1220.cz / ...
 
-Csharp, netcore10
-Entity framework code first - tzn. database design is in csharp, and netcore creates db tables from it
-netcore db migrations
+Proto: každý sdílený údaj je vlastní číselník s Id, a instalace na něj jen odkazuje.
 
-# Frontend
+    Machines [Id, MachineName]
+    27 ... GAIIS1
+    28 ... GAIIS2
 
-React tsx
-fluent ui components / https://storybooks.fluentui.dev/react/?path=/docs/concepts-introduction--docs
-Vite bundler
+    ApplicationInstalation [Id, MachineId, AppNameId, AppStageNameId, ...]
+    1 / 27 / 5 / 2 / ...
+    2 / 28 / 5 / 2 / ...
 
-# Authentication
+## Číselníky (naplňují se PRVNÍ, každý má vlastní CRUD obrazovku)
 
-db tabulka ApplicationUser, classic login via username + password
+Machines                [Id, MachineName, Description, IsEnabled]
+                        GAIIS1, GAIIS2, SERVER1, ONTARIO
+AppNames                [Id, AppName, Description, IsEnabled]
+                        ProAssist CallCenter, Proassist Extranet, Data Exchange WebApi
+AppStageNames           [Id, StageName, SortOrder, IsEnabled]
+                        STAGING, RC0, MAIN, PenTest, Mirror
+ProcessorArchitectures  [Id, ArchitectureName, IsEnabled]
+                        x86, x64, arm, arm64
+DnsEndpoints            [Id, DnsName, IsLoadBalancer, Description, IsEnabled]
+                        https://paha.ga.local, https://vipsprava.1220.cz
+RootPaths               [Id, Path, IsEnabled]
+                        /, /proassistnet.rc0, /proassistnet.staging, /proassistmirror
+PhysicalPaths           [Id, Path, IsEnabled]
+                        c:\inetpub\proassistnet.rc0
+AppRepositories         [Id, RepositoryUrl, RepositoryType, Description, IsEnabled]
+                        svn://..., git://..., bitbucket://...
+Tags                    [Id, TagName, Description, IsEnabled]        (Tbd: PHASE2)
 
-# Objective co to ma delat
+## ApplicationInstalation (POSLEDNÍ výsledná tabulka)
 
-Sledovani kde je co nainstalovano
+Skládá se výhradně z odkazů na už existující číselníky plus vlastních atributů instalace.
+Nezakládá se dřív, než jsou číselníky naplněné - výběr v UI je vždycky dropdown, nikdy volný text.
 
-Atributy jedné instalace:
+    Id
+    MachineId                -> Machines                (povinné)
+    AppNameId                -> AppNames                (povinné)
+    AppStageNameId           -> AppStageNames           (povinné)
+    ProcessorArchitectureId  -> ProcessorArchitectures  (povinné)
+    RootPathId               -> RootPaths               (povinné)
+    DnsEndpointId            -> DnsEndpoints            (volitelné - služba/konzole nemá DNS)
+    PhysicalPathId           -> PhysicalPaths           (volitelné)
+    Tags                     M:N přes InstallationTag
+    AppRepositories          M:N přes InstallationRepository
+    IsActive                 obsluhuje tahle instalace provoz
+    ValidFromDate            YYYYMMDD
+    ValidToDate              YYYYMMDD, null = pořád platí
+    IsEnabled                0 | 1, soft delete
+    CreatedUtc, ModifiedUtc
 
-MachineName                     GAIIS1
-AppName                         ProAssistNet
-AppStageName                    [Staging | RC0 | Main | PenTest | Mirror]
-ProcessorArchitecture           x86/x64/arm/.....
-DnsName                         https://paha.ga.local | https://vipsprava.1220.cz
-RootPath                        / | /proassistnet.rc0 | /proassistnet.staging | /proassistmirror
-Tags                            Tbd: PHASE2
-AppRepositories                 [svn://..... git:// ... bitbucket:// ...]
-IsActive                        [x]
-PhysicalPath                    c:\asdasda\asdadsa\
-ValidFromDate                   YYYYMMDD
-ValidToDate                     YYYYMMDD
-IsEnabled                       [0 | 1] / soft delete flag
+Vazby M:N mají vlastní link tabulku bez IsEnabled - link bez obou konců nedává smysl a maže se
+natvrdo; soft delete žije na koncích, ne na vazbě.
 
-# Toto nesmi byt vse v jedne db tabulce, ale musi se to rozpadnout
-na N tabulek (necht claude udela analyzu), protoze napr. DnsName muze ukazovat na load balancer
+# Pořadí práce v UI
 
-GAIIS1 / RC0 / x64 / https://paha.ga.local / ...
-GAIIS2 / RC0 / x64 / https://paha.ga.local / ...
-GAIIS3 / RC0 / x64 / https://vipsprava.1220.cz / ...
-
----------------
-Machines [Id, MachineName]
-27 ... GAIIS1
-28 ... GAIIS2
-
-
-MachineId, AppNameId, AppStageNameId, ....
-
-27 / 5 / 2 / 4
-28 / 5 / 2 / 4
-
-PROJECT ARGUS
-
-# NX monorepo
-
-nx, node
-pnpm as package manager
-
-# Database
-
-MSSSQL database, standard sql server authentication (not trusted connection)
-/ download SQL server developer edition NEBO nejak to rozjet v dockeru
-Sql management studio NEBO vscode extension
-
-# Backend
-
-Csharp, netcore10
-Entity framework code first - tzn. database design is in csharp, and netcore creates db tables from it
-netcore db migrations
-
-# Frontend
-
-React tsx
-fluent ui components / https://storybooks.fluentui.dev/react/?path=/docs/concepts-introduction--docs
-Vite bundler
-
-# Authentication
-
-db tabulka ApplicationUser, classic login via username + password
-
-# Objective co to ma delat
-
-Sledovani kde je co nainstalovano
-
-Atributy jedné instalace:
-
-MachineName                     GAIIS1
-AppName                         ProAssistNet
-AppStageName                    [Staging | RC0 | Main | PenTest | Mirror]
-ProcessorArchitecture           x86/x64/arm/.....
-DnsName                         https://paha.ga.local | https://vipsprava.1220.cz
-RootPath                        / | /proassistnet.rc0 | /proassistnet.staging | /proassistmirror
-Tags                            Tbd: PHASE2
-AppRepositories                 [svn://..... git:// ... bitbucket:// ...]
-IsActive                        [x]
-PhysicalPath                    c:\asdasda\asdadsa\
-ValidFromDate                   YYYYMMDD
-ValidToDate                     YYYYMMDD
-IsEnabled                       [0 | 1] / soft delete flag
-
-# Toto nesmi byt vse v jedne db tabulce, ale musi se to rozpadnout
-na N tabulek (necht claude udela analyzu), protoze napr. DnsName muze ukazovat na load balancer
-
-GAIIS1 / RC0 / x64 / https://paha.ga.local / ...
-GAIIS2 / RC0 / x64 / https://paha.ga.local / ...
-GAIIS3 / RC0 / x64 / https://vipsprava.1220.cz / ...
-
----------------
-Machines [Id, MachineName]
-27 ... GAIIS1
-28 ... GAIIS2
-
-
-MachineId, AppNameId, AppStageNameId, ....
-
-27 / 5 / 2 / 4
-28 / 5 / 2 / 4
+1. Číselníky - jedna obrazovka na číselník, plný CRUD, soft delete přes IsEnabled.
+2. ApplicationInstalation - seznam s filtry a hledáním + založení/editace přes dropdowny
+   plněné z číselníků. Tohle je hlavní obrazovka, do které se čte nejčastěji.

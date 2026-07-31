@@ -1,17 +1,39 @@
 =====================================================================
  ARGUS - PROGRESS LOG
 =====================================================================
- Poslední aktualizace: 2026-07-29
+ Poslední aktualizace: 2026-07-30
  Kde jsme skončili a čím zítra navázat.
+
+ POZOR: tenhle soubor je HISTORICKÝ deník stavby. Aktuální stav, postup
+ spuštění a předávací checklist jsou v README.md - ten je vstupní bod.
+
+ PŘEKONÁNO 2026-07-30 (normalizace schématu). Vše níže popisuje stav
+ s PĚTI číselníky a OSMI tabulkami. Ten stav už neplatí:
+
+   - číselníků je DEVĚT (přibyly RootPaths, PhysicalPaths, Tags;
+     AppRepositories jsou devátá sdílená hodnota, ale s vlastní
+     obrazovkou, ne v generickém editoru)
+   - tabulek je TŘINÁCT
+   - Tags NENÍ text, je to tabulka + vazba M:N (InstallationTags)
+   - AppRepositories nevisí na aplikaci, ale na instalaci (M:N)
+   - entity přejmenované: Application -> AppName,
+     AppStage -> AppStageName, Installation -> ApplicationInstallation
+   - historie migrací sloučena do jediné InitialCreate; z existující
+     dev databáze NEVEDE cesta nahoru, musí se dropnout a naseedovat
+
+ Aktuální plán a postup ověření: ai-implementation-plan/10_schema_normalization.md
 =====================================================================
 
 
 ---------------------------------------------------------------------
-KDE JSME (aktuální stav)
+KDE JSME (aktuální stav k 2026-07-30)
 ---------------------------------------------------------------------
 
-Fáze: KOSTRA CELÉ APLIKACE POSTAVENA (Phase 1-6 hotové v kódu).
-      Chybí JEDINÁ věc: rozjet databázi a spustit to naživo.
+Fáze: HOTOVO A PŘIPRAVENO K PŘEDÁNÍ.
+      Aplikace běží celá naživo (databáze -> API -> prohlížeč), je
+      proklikaná v prohlížeči, má testy a CI. Zbývající body jsou
+      rozhodnutí pro první reálné nasazení, ne nedodělky - viz README,
+      sekce "Before anyone else can reach this".
 
 HOTOVO - dokumentace a plány (dle CLAUDE-planning-standards.MD):
   [x] ai-implementation-plan/1_argus_demo_build.md .... hlavní plán (checkboxy aktualizované)
@@ -43,7 +65,8 @@ HOTOVO - kód:
         - správa všech 5 číselníků
         -> BUILD OK (tsc + vite prošly)
   [x] databáze: SQL Server LocalDB (MSSQLLocalDB), nativně, BEZ Dockeru
-        - docker-compose.yml zůstal jen jako fallback pro ne-Windows stroj
+        - docker-compose.yml zůstal jako fallback pro ne-Windows stroj
+          (2026-07-30 smazán, postup je popsaný v README)
   [x] .gitignore (appsettings*.json a secrets/ se necommitují)
 
 HOTOVO - rozjeto naživo (2026-07-29):
@@ -93,11 +116,45 @@ HOTOVO - revize a přestavba UI (2026-07-29, plán 9):
   [x] AppRepositories: doplněn CELÝ backend (controller, služba, DTO -
         dosud neexistovaly žádné endpointy) i správa ve frontendu
 
+HOTOVO - příprava na předání (2026-07-30):
+  [x] UI PROKLIKÁNO V PROHLÍŽEČI (headless Chrome, 22 kontrol).
+        Prošlo všech pět bodů cíle níže: přihlášení (i špatné heslo -
+        hláška, ne bílá stránka), seznam se všemi filtry, tříděním a
+        stránkováním, CRUD přes dialogy včetně měkkého mazání, všech
+        pět číselníků. Ověřeno i to hlavní: přejmenování stroje se
+        okamžitě projeví u všech instalací, a přejmenování DNS endpointu
+        NESHODÍ příznak load balanceru (regrese z 2026-07-29).
+        Konzole prohlížeče čistá, kromě očekávané 401 ze zkoušky
+        špatného hesla. Seed data po testu vrácena do původního stavu.
+  [x] Smazán docker-compose.yml a .env.example. Postup pro ne-Windows
+        stroj (LocalDB je jen pro Windows) je popsaný v README.
+  [x] Testy: přibyly LookupServiceTests a AuthServiceTests, celkem 29
+        testů (bylo 16). Nově pokrytá i ta regrese s load balancerem -
+        a navíc strukturální test, který spadne, jakmile někdo přidá do
+        LookupUpsertDto pole, které LookupItemDto neumí vrátit.
+  [x] Testy zapojeny do nx a pnpm ("pnpm run test") - do teď je nic
+        nespouštělo. Přidáno CI (.github/workflows/ci.yml): lint, build,
+        test na každý push a pull request.
+  [x] "pnpm run lint" doteď mlčky neudělal nic (žádná konfigurace
+        eslintu neexistovala). Doplněn eslint pro frontend, doběhne
+        načisto.
+  [x] Opraveno bezpečnostní varování NU1903 (SQLitePCLRaw 2.1.11 ->
+        2.1.12) v testovacím projektu.
+  [x] Opraveno přihlašovací jméno v dokumentaci: uživatel se jmenuje
+        msfadmin (DbSeeder.cs), ne admin. Heslo je hodnota
+        Seed:AdminPassword, ne "Argus2026".
+
 ZBÝVÁ:
-  [ ] Proklikat UI v prohlížeči - kód je přeložený a API otestované
-        requesty, ale nikdo to ještě neviděl v prohlížeči
-  [ ] Smazat docker-compose.yml a .env.example (mně to zablokoval
-        bezpečnostní klasifikátor): rm docker-compose.yml .env.example
+  [ ] Nic, co by bránilo předání. Rozhodnutí pro reálné nasazení
+        (rotace hesla, klíč JWT mimo appsettings, vypnout
+        MigrateAndSeedOnStartup, CORS, HTTPS, balení) jsou vypsaná
+        v README v sekci "Before anyone else can reach this".
+  [x] Dev databáze vyčištěna (2026-07-30): smazán ručně vyplněný
+        testovací záznam (/cmd, "dfadfasdfasdf"), dva měkce smazané
+        řádky z proklikání a testovací repozitář
+        (git://server/test-argus.git). Stav teď přesně odpovídá čerstvému
+        seedu: 5 instalací, 3 stroje, 2 aplikace, 5 stagí, 3 architektury,
+        2 DNS endpointy, 3 repozitáře, uživatel msfadmin.
 
 
 ---------------------------------------------------------------------
@@ -118,7 +175,8 @@ Splněno, až projde všech pět bodů:
      (vše už jednou proběhlo 2026-07-29, jde o zopakování po restartu)
 
   2. Přihlášení přes UI
-     - admin / Argus2026 projde, uloží se JWT, přesměruje na seznam
+     - msfadmin + heslo ze Seed:AdminPassword projde, uloží se JWT,
+       přesměruje na seznam
      - špatné heslo skončí chybovou hláškou, ne bílou stránkou
 
   3. Seznam instalací v prohlížeči
@@ -150,9 +208,9 @@ ZÍTRA - PŘESNĚ ODKUD ZAČÍT
         pnpm run db:up          (sqllocaldb start MSSQLLocalDB)
         pnpm run dev:api        (http://localhost:5080, Swagger na /swagger)
         pnpm run dev:frontend   (http://localhost:4200)
-     Přihlášení: admin / Argus2026
-     (heslo je v apps/netcorebackends/Argus.Api/appsettings.Development.json
-      pod Seed:AdminPassword)
+     Přihlášení: uživatel msfadmin (tak ho zakládá DbSeeder.cs), heslo je
+     hodnota Seed:AdminPassword v
+     apps/netcorebackends/Argus.Api/appsettings.Development.json
 
      POZOR: DbSeeder.SeedUsersAsync je idempotentní - když už nějaký uživatel
      existuje, skončí hned a heslo v konfiguraci NEMÁ žádný účinek. Pro změnu
@@ -163,12 +221,18 @@ ZÍTRA - PŘESNĚ ODKUD ZAČÍT
 DATOVÝ MODEL (výsledek analýzy - proč zrovna takhle)
 ---------------------------------------------------------------------
 
+  [PŘEKONÁNO 2026-07-30 - platný model je v README.md a v plánu 10]
+
   5 číselníků:  Machines, Applications, AppStages,
                 ProcessorArchitectures, DnsEndpoints
   hlavní:       Installations (5x cizí klíč + vlastní hodnoty)
   navíc:        AppRepositories (patří k Applications, ne k instalaci)
                 ApplicationUser (přihlašování)
   = celkem 8 tabulek
+
+  Dnes: 8 číselníků (+ RootPaths, PhysicalPaths, Tags), AppRepositories
+  jako devátá sdílená hodnota vázaná M:N na instalaci, dvě vazební
+  tabulky = celkem 13 tabulek.
 
   Klíčový důvod pro DnsEndpoints jako vlastní tabulku: jedna DNS adresa
   může být load balancer před více stroji. V seed datech je přesně tenhle
@@ -186,6 +250,10 @@ POZNÁMKY / VĚDOMÉ ODCHYLKY
 
   - Tags: zůstává text, ne vlastní tabulka (roadplan to sám značí jako
     "Tbd: PHASE2"). Je to jeden sloupec, přesun bude levný.
+    -> NEPLATÍ od 2026-07-30: PHASE2 je hotová, Tags je vlastní tabulka
+       s vazbou M:N. Přesun skutečně levný nebyl - vynutil si i změnu
+       hledání a filtrů na .Any() místo joinu, protože join nafukoval
+       TotalCount.
   - CLAUDE-dotnet.md je ŠABLONA z jiného projektu (TrafficEvent/DATEX).
     Konvence se dodržely, ale tři věci nešlo převzít doslova a jsou
     zdůvodněné v plánech: Negotiate/Windows autentizace (Argus má

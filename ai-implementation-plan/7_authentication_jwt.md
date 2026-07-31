@@ -18,7 +18,7 @@ a JWT that protects every API endpoint, with a login screen on the frontend.
 - [x] All non-auth controllers carry `[Authorize(AuthenticationSchemes = JwtBearer)]`
 - [x] Startup refuses to boot if `Jwt:SigningKey` is missing or under 32 characters
 - [x] Frontend `AuthProvider` + `LoginPage`; 401 clears the token and returns to login
-- [x] Demo user seeded (`admin`), password from `Seed:AdminPassword` configuration
+- [x] Demo user seeded (`msfadmin`, `DbSeeder.cs`), password from `Seed:AdminPassword` configuration
 
 ---
 

@@ -1,7 +1,8 @@
 # Plan: Deployability & Polish (Phase 6)
 
 **Date:** 2026-07-29
-**Status:** `In Progress`
+**Status:** `Complete` — 2026-07-30, except container images, which stay out of scope by the
+decision recorded in Notes. Test and CI wiring was added on 2026-07-30; see the README.
 **Description:** Make Argus runnable from a documented single path, keep all configuration and
 secrets out of source, and finish the remaining polish items (lookup management screens,
 end-to-end filtering/sorting/paging).
@@ -18,7 +19,7 @@ end-to-end filtering/sorting/paging).
 - [x] NX targets for both apps (`nx run argus-api:serve`, `nx run argus-frontend:serve`)
 - [x] README with the full run steps
 - [x] Backend builds clean; frontend type-checks and builds clean
-- [x] Verify the running stack end-to-end (login → grid → create → edit → delete) _(verified against the API on 2026-07-29; browser click-through still outstanding)_
+- [x] Verify the running stack end-to-end (login → grid → create → edit → delete) _(verified against the API on 2026-07-29; browser click-through completed 2026-07-30 — see `9_frontend_ux_overhaul_and_fixes.md`)_
 - [ ] Container images for the API and frontend _(out of scope — see Notes)_
 
 ---
@@ -33,5 +34,6 @@ end-to-end filtering/sorting/paging).
 - **The API migrates and seeds on startup** (`Database:MigrateAndSeedOnStartup`), so the
   documented path is genuinely one command per component. Turn this off for any environment
   where schema changes should be applied deliberately.
-- **Demo credentials are demo credentials.** `admin` / the value of `Seed:AdminPassword`, which
-  defaults to a well-known string. Change it before this is reachable by anyone else.
+- **Demo credentials are demo credentials.** `msfadmin` / the value of `Seed:AdminPassword`.
+  Change it before this is reachable by anyone else, and note that changing the setting alone is
+  not enough once the database exists — see the README's pre-deployment checklist.

@@ -2,20 +2,36 @@
  PROJEKT ARGUS – KOMPLETNÍ PŘEHLED PRO ZAČÁTEČNÍKA (česky)
 =====================================================================
 
+ HISTORICKÝ DOKUMENT. Napsáno 2026-07-29, ještě NEŽ vznikl kód -
+ jako úvod do pojmů a technologií. Vysvětlivky (slovníček, proč se
+ data rozpadají do více tabulek, co je code-first) platí dál a jsou
+ pořád užitečné.
+ Věty typu "zatím tu není žádný kód" už neplatí: aplikace je hotová,
+ běží a je proklikaná.
+
+ POZOR na sekci 1: vypisuje atributy instalace jako jeden seznam.
+ Tak to v databázi NEVYPADÁ. Devět z nich jsou sdílené hodnoty a každá
+ má vlastní tabulku (číselník); instalace na ně jen odkazuje přes ID.
+ Vlastní jsou instalaci jen datumy platnosti a příznaky.
+ Podrobně: README.md, sekce "The data model".
+
+ Aktuální stav a jak to spustit -> README.md.
+=====================================================================
+
 Tento soubor shrnuje VŠE, co ve složce Argus zatím je, co to znamená,
 a co musíš jako začátečník pochopit, než se pustíme do stavby.
 
 ---------------------------------------------------------------------
-0) NEJDŮLEŽITĚJŠÍ VĚC NA ÚVOD
+0) NEJDŮLEŽITĚJŠÍ VĚC NA ÚVOD  (stav k 2026-07-29, dnes už překonáno)
 ---------------------------------------------------------------------
 
-Ve složce zatím NENÍ ŽÁDNÝ KÓD ani hotová aplikace.
-Jsou tam jen TŘI textové soubory = poznámky a pravidla.
-Popisují, CO se má postavit a JAK se to má stavět.
+TEHDY ve složce NEBYL ŽÁDNÝ KÓD - byly tam jen tři textové soubory
+s poznámkami a pravidly. Popisovaly, CO se má postavit a JAK.
 
-Jinak řečeno: máš zatím "plán stavby domu", ne postavený dům.
+DNES (2026-07-30) je dům postavený: NX monorepo, .NET 10 API s EF Core
+a migracemi, React frontend, 29 testů, CI. Spouštění je v README.md.
 
-Soubory ve složce:
+Soubory, o kterých je řeč níže:
   - roadplan .................... zadání projektu (co má appka umět)
   - CLAUDE-planning-standards.MD  pravidla, jak má AI plánovat práci
   - CLAUDE-dotnet.md ........... pravidla, jak psát backend (C#)
@@ -137,6 +153,7 @@ B) CLAUDE-dotnet.md  = "Jak psát backend v C#"
 ---------------------------------------------------------------------
 
   1. Zatím máš POUZE poznámky a pravidla, ne funkční program.
+     (Platilo 2026-07-29. Dnes aplikace běží - viz README.md.)
   2. Argus = evidence "kde je co nainstalováno".
   3. Stack je "microsoftí": C# backend + React frontend + SQL Server.
   4. Databáze se popíše v C# (code-first) a rozpadne do více tabulek.

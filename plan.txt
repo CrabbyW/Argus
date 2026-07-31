@@ -1,0 +1,323 @@
+=====================================================================
+ !!! PŘEKONÁNO - NEPOUŽÍVAT JAKO NÁVOD !!!
+=====================================================================
+ Aktuální plán je ai-implementation-plan/10_schema_normalization.md.
+
+ Proč je tenhle soubor mrtvý:
+
+  - Celá sekce MIGRACE popisuje ručně psanou migraci
+    20260730152501_NormalizePathsTagsAndRepositories se zálohami,
+    STRING_SPLIT back-fillem a THROW guardy. TEN SOUBOR NEEXISTUJE.
+    Historie migrací byla sloučena do jediné 20260730194553_InitialCreate.
+    Žádný back-fill se nedělá; z existující dev databáze nevede cesta
+    nahoru, musí se dropnout a naseedovat znovu.
+  - Rizika kolem STRING_SPLIT, compatibility levelu, LTRIM/RTRIM kolizí
+    a ztrátového Down() tím pádem NEPLATÍ.
+  - Entity byly mezitím přejmenované (Application -> AppName,
+    AppStage -> AppStageName, Installation -> ApplicationInstallation),
+    takže názvy v textu níže nesedí na kód.
+  - Počet vazeb v seedu je 7, ne 8 (viz DbSeeder.SeedRepositoriesAsync).
+
+ Ponecháno jen jako záznam úvah, které k modelu vedly - hlavně
+ zdůvodnění M:N u repozitářů a poznámka o PhysicalPaths.
+=====================================================================
+
+=====================================================================
+ ARGUS - PLÁN: NORMALIZACE ZBÝVAJÍCÍCH ATRIBUTŮ DO VLASTNÍCH TABULEK
+=====================================================================
+ Založeno: 2026-07-30
+ Stav: PŘEKONÁNO (viz hlavička výše)
+=====================================================================
+
+
+---------------------------------------------------------------------
+PROČ
+---------------------------------------------------------------------
+
+Zpětná vazba po demu: na každou věc má být vlastní tabulka.
+Zadání to podpírá (roadplan:78-79 a znovu 145-146):
+
+  "Toto nesmi byt vse v jedne db tabulce, ale musi se to rozpadnout
+   na N tabulek (necht claude udela analyzu), protoze napr. DnsName
+   muze ukazovat na load balancer"
+
+Před změnou bylo 8 tabulek. Tabulkou NEBYLY tři atributy, které
+zadání vypisuje jako atributy instalace:
+
+  RootPath      nvarchar(256) na Installations -> číselník RootPaths
+  PhysicalPath  nvarchar(512), nullable        -> číselník PhysicalPaths
+  Tags          nvarchar(512), hodnoty přes ";" -> Tags + InstallationTags
+
+Navíc AppRepositories visely na Application, i když je zadání vypisuje
+jako atribut instalace. Přepojeno na instalaci vazbou M:N (rozhodnuto
+uživatelem 2026-07-30): prostý cizí klíč by řádky rozmnožil (3 -> 8)
+a stejnou URL uložil vícekrát, což je přesně ta duplicita, kvůli které
+se celý zbytek normalizuje.
+
+VÝSLEDEK: 13 tabulek.
+  8 číselníků: Machines, Applications, AppStages, ProcessorArchitectures,
+               DnsEndpoints, RootPaths, PhysicalPaths, Tags
+  + Installations, InstallationTags, AppRepositories,
+    InstallationRepositories, ApplicationUser
+
+Rozhodnutí, která nejsou otevřená:
+  - cílená úprava existujícího kódu, ne přepis od nuly
+  - migrace ZACHOVÁVÁ data (žádné drop & re-seed)
+  - repozitáře jako M:N
+  - převod dat se dělá v SQL (viz sekce MIGRACE)
+
+VĚDOMÝ DŮSLEDEK: PhysicalPath jako sdílený číselník je sémanticky
+sporný. Seed data už dnes dávají dvěma instalacím na RŮZNÝCH strojích
+stejnou cestu c:\inetpub\proassistnet.rc0. Po normalizaci je to jeden
+řádek, takže přejmenování na obrazovce Lookups přepíše cestu na obou
+strojích, i když jde o jiné disky. Tabulka poroste zhruba 1:1 s počtem
+instalací. Zmírnění: ve formuláři Combobox s našeptáváním, ne dropdown.
+
+
+---------------------------------------------------------------------
+CO UŽ JE HOTOVÉ (přeloženo, 0 chyb, 0 varování)
+---------------------------------------------------------------------
+
+MODEL
+  [x] Nové entity: RootPath, PhysicalPath, Tag, InstallationTag,
+        InstallationRepository (Database/Entities/)
+        - u cest se vlastnost jmenuje Path, ne RootPath: C# nedovolí
+          člen se jménem obalující třídy
+  [x] Konfigurace ke každé (Database/Entities/Configurations/),
+        číselníky mají HasQueryFilter(x => x.IsEnabled), unikátní index
+        na jméno
+  [x] Vazební tabulky ZÁMĚRNĚ bez IsEnabled a bez query filtru:
+        filtrovaná vazební tabulka umí schovat řádek před diffem při
+        editaci a ten by ho pak vložil znovu -> porušení PK
+  [x] Installation: pryč tři stringy, přibyly RootPathId (povinný),
+        PhysicalPathId (nullable), InstallationTags,
+        InstallationRepositories
+  [x] Unikátní index UX_Installations_Deployment přepnutý na RootPathId,
+        pořád s filtrem [IsEnabled] = 1
+  [x] Application.AppRepositories SMAZÁNO (jinak EF vyrobí stínový FK)
+  [x] AppRepository bez ApplicationId, URL unikátní globálně
+  [x] ArgusDbContext: nové DbSety
+
+BACKEND
+  [x] DTO: InstallationUpsertDto na Id (RootPathId, PhysicalPathId,
+        TagIds, RepositoryIds), DetailDto vrací Id i jméno a
+        Tags jako LookupItemDto[], ListItemDto Tags jako string[],
+        FilterDto + RootPathId/PhysicalPathId/TagId
+  [x] InstallationMapper na navigace; ApplyUpsert vazby ZÁMĚRNĚ neřeší
+        (je statický, nemá DbContext) - komentář tam je
+  [x] InstallationService: includy, nové facety, hledání, řazení,
+        ValidateReferences, ValidateUniqueDeployment na RootPathId,
+        nová metoda SyncLinks (diff vazeb s .Distinct())
+  [x] HLEDÁNÍ A FILTR ŠTÍTKŮ PŘES .Any(), NIKDY JOINEM - CountAsync
+        běží nad stejným dotazem před stránkováním a join by znásobil
+        řádky a nafoukl TotalCount
+  [x] LookupKind + RootPaths, PhysicalPaths, Tags (přidáno na konec,
+        číselné hodnoty stávajících zůstaly stabilní)
+  [x] Všech šest switchů v LookupService doplněno
+  [x] EnsureNotInUseAsync pro štítky vychází z db.Installations, ne
+        z db.InstallationTags - jen tak se uplatní query filtr a
+        vyřazená instalace neblokuje smazání štítku
+  [x] MaxNameLength(kind) + EnsureNameFits - LookupUpsertDto.Name
+        rozšířeno na 512 (kvůli PhysicalPaths) a skutečná délka se
+        hlídá per-kind. Validace je tím PŘÍSNĚJŠÍ než dřív: doteď
+        prošlo 200znakové jméno stroje a spadlo až na SqlException.
+  [x] AppRepositoryService přepsán na M:N (GetAllAsync bere
+        installationId i applicationId, SyncInstallationLinks)
+  [x] AppRepositoriesController: nový parametr installationId
+  [x] DbSeeder: nové číselníky, instalace přes Id, vazby na štítky,
+        nová SeedRepositoriesAsync volaná AŽ PO instalacích
+
+MIGRACE (napsaná, ale NEAPLIKOVANÁ)
+  [x] 20260730152501_NormalizePathsTagsAndRepositories.cs
+      Nascaffoldováno přes dotnet ef a pak RUČNĚ PŘEPSÁNO.
+
+
+---------------------------------------------------------------------
+MIGRACE - PROČ SE MUSELA PŘEPSAT RUČNĚ
+---------------------------------------------------------------------
+
+EF u scaffoldu sám hlásí "may result in the loss of data" a vygeneruje
+pořadí, které by data ZAHODILO:
+
+  řádky 25-37   DropColumn RootPath, PhysicalPath, Tags, ApplicationId
+  řádek 54+     CreateTable RootPaths, PhysicalPaths, Tags, ...
+
+Tedy zahodí sloupce dřív, než vůbec vytvoří tabulky, které mají ty
+hodnoty převzít. Back-fill nevygeneruje vůbec žádný.
+
+Ruční pořadí v Up() je proto:
+
+  0. Zálohy __InstallationsBackup_Phase2 a __AppRepositoriesBackup_Phase2
+     (SELECT ... INTO) - kvůli ověření po migraci i kvůli rollbacku
+  1. GUARD: THROW 50002, pokud existuje štítek delší než 64 znaků
+     (dřív se vešel do sloupce 512, nový sloupec je 64 -> tiché uříznutí)
+  2. CreateTable RootPaths, PhysicalPaths, Tags
+  3. Back-fill INSERT ... SELECT DISTINCT s LTRIM(RTRIM(...))
+     - trim je nosný: cíl má unikátní index, '/app' a '/app ' by byly
+       dva zdroje na jedno místo
+     - prázdný RootPath -> '/' (tak to měl starý sloupec v defaultu)
+     - štítky přes CROSS APPLY STRING_SPLIT(i.Tags, ';')
+  4. AddColumn RootPathId a PhysicalPathId jako NULLABLE
+  5. UPDATE ... FROM ... JOIN na oříznutý text -> naplnit oba FK
+  6. GUARD: THROW 50001 / 50004, pokud po back-fillu zbyl NULL
+  7. AlterColumn RootPathId -> NOT NULL
+  8. CreateTable InstallationTags + INSERT DISTINCT
+     - DISTINCT je nosný: uložené "web;web" by porušilo složený PK
+  9. CreateTable InstallationRepositories, pak:
+     - vazby se zakládají rovnou na KANONICKÝ řádek
+       (MIN(Id) per RepositoryUrl), teprve pak se duplicity mažou,
+       takže žádná vazba nikdy neukazuje na řádek, který má zmizet
+     - join vidí i měkce smazané instalace ZÁMĚRNĚ: vyřazená instalace
+       si nechá historii, odkud se brala
+     - repozitář aplikace bez instalací si řádek nechá, jen zůstane
+       bez vazeb -> nic se nemaže, není na čem abortovat
+     - DropColumn ApplicationId
+ 10. DropIndex UX_Installations_Deployment (obsahuje RootPath!),
+     teprve pak DropColumn tří stringů
+ 11. Nové indexy a FK; UX_Installations_Deployment znovu nad RootPathId
+     se STEJNÝM jménem i filtrem [IsEnabled] = 1
+
+Down() je zrcadlo: sloupce zpět, naplnit z číselníků, štítky složit
+přes STRING_AGG(t.TagName, ';') WITHIN GROUP (ORDER BY t.TagName),
+teprve pak zahodit nové tabulky.
+U repozitářů je Down ZTRÁTOVÝ a je to v souboru napsané: repozitář
+sloužící instalacím více aplikací se vrací pod MIN(ApplicationId).
+
+POŽADAVKY: STRING_SPLIT potřebuje compatibility level >= 130
+(SQL Server 2016), STRING_AGG v Down() SQL Server 2017+. Ověřit:
+  SELECT compatibility_level FROM sys.databases WHERE name = DB_NAME();
+
+
+---------------------------------------------------------------------
+CO ZBÝVÁ
+---------------------------------------------------------------------
+
+1. OVĚŘIT MIGRACI (nejdřív, než se sáhne na cokoli dalšího)
+   [ ] dotnet build - po ručním přepisu migrace ještě NEPROBĚHL
+   [ ] dotnet ef migrations script <předchozí> <nová> --idempotent
+       a PŘEČÍST SQL OČIMA dřív, než se dotkne databáze
+   [ ] Záloha dev databáze (BACKUP DATABASE nebo kopie souboru).
+       POZOR: Database:MigrateAndSeedOnStartup je true (Program.cs:123),
+       takže migraci spustí i pouhé "pnpm run dev:api".
+   [ ] Před migrací zaznamenat počty:
+       SELECT COUNT(*) FROM Installations;
+       SELECT COUNT(DISTINCT LTRIM(RTRIM(RootPath))) FROM Installations;
+       SELECT COUNT(*) FROM AppRepositories;
+   [ ] pnpm run db:migrate
+   [ ] Po migraci musí všechny tyhle dotazy vrátit NULA řádků:
+       SELECT 1 FROM Installations WHERE RootPathId IS NULL;
+       SELECT b.Id FROM __InstallationsBackup_Phase2 b
+         JOIN Installations i ON i.Id = b.Id
+         JOIN RootPaths rp ON rp.Id = i.RootPathId
+         WHERE LTRIM(RTRIM(b.RootPath)) <> rp.Path;
+       SELECT b.Id FROM __InstallationsBackup_Phase2 b
+         JOIN Installations i ON i.Id = b.Id
+         LEFT JOIN PhysicalPaths pp ON pp.Id = i.PhysicalPathId
+         WHERE ISNULL(LTRIM(RTRIM(b.PhysicalPath)),'') <> ISNULL(pp.Path,'');
+       + porovnat množinu štítků na instalaci proti rozsekané záloze
+   [ ] Vyzkoušet rollback: dotnet ef database update <předchozí migrace>
+   [ ] Nakonec zahodit __*Backup_Phase2 tabulky
+
+2. TESTY (teď se NEPŘELOŽÍ - 29 testů stojí na starém tvaru)
+   [ ] TestDb.CreateSeeded: doseedovat tři nové číselníky
+   [ ] TestDb: get-or-create pomocníci RootPathId(string),
+       PhysicalPathId(string), TagId(string), aby v testech zůstal
+       čitelný záměr místo holých čísel
+   [ ] Obě tovární metody Deployment(...) na Id
+       (InstallationServiceTests.cs:9-27, LookupServiceTests.cs:220-231)
+   [ ] Nové testy:
+       - Searching_by_tag_does_not_multiply_the_row_count  <- MUST HAVE
+         instalace se štítky {web, webhook}, hledat "web",
+         TotalCount musí být 1. Přímá regrese na CountAsync; spadne,
+         jakmile někdo přepíše predikát štítků na join.
+       - štítky se uloží jako vazby a přečtou zpět
+       - editace štítků přidá a odebere jen to, co se změnilo
+       - duplicitní Id v payloadu dá jednu vazbu (guard na .Distinct())
+       - filtr podle štítku
+       - štítek / root path v použití nejde smazat
+       - přejmenování root path se projeví u všech instalací
+       - neexistující RootPathId / TagId je odmítnuté
+       - AppRepositoryServiceTests (dnes žádné): repozitář přidaný jedné
+         instalaci se neobjeví u sesterské instalace téže aplikace;
+         stejná URL sdílená dvěma instalacemi = jeden řádek
+       - jméno delší než sloupec skončí 400 (MaxNameLength)
+   POZOR: TestDb staví schéma přes EnsureCreated() na SQLite, takže
+   MIGRACE SE V TESTECH NIKDY NESPUSTÍ. Žádné z ručního SQL výše není
+   pokryté xUnitem - to musí ověřit bod 1 proti skutečnému SQL Serveru.
+
+3. FRONTEND (teď se nepřeloží - tsc ukáže každé místo)
+   [ ] api/types.ts: LookupKind + 'rootpaths' | 'physicalpaths' | 'tags';
+       InstallationListItem.tags -> string[];
+       InstallationDetail + rootPathId/physicalPathId, tags: LookupItem[];
+       InstallationUpsert na Id a pole Id;
+       InstallationFilter + tři facety;
+       AppRepository bez applicationId, s installationIds
+   [ ] api/client.ts: getRepositories({ installationId, applicationId })
+   [ ] hooks/useLookups.ts: osm polí, osm paralelních GETů
+   [ ] pages/LookupsPage.tsx: tři nové položky v poli tabs (67-73),
+       zbytek obrazovky je generický; osm tabů se na úzkém okně
+       nevejde -> overflowX: auto
+   [ ] pages/InstallationsPage.tsx: facety Root path a Tag,
+       readFilter/writeFilter o tři klíče (root, ppath, tag),
+       buňka Tags jako Badge místo textu, sloupec tags rozšířit ze 100
+   [ ] components/InstallationDialog.tsx: blankForm/hydratace/payload
+       na Id; Root path a Physical path jako Combobox freeform
+       s našeptáváním - dnes uživatel cestu prostě napíše a nutit ho
+       nejdřív na obrazovku Lookups by byla regrese; když napsaná
+       hodnota neodpovídá žádné položce, dialog ji před uložením založí
+       přes POST /api/lookups/rootpaths a použije vrácené Id
+       (400 "... already exists." ošetřit načtením číselníku a
+       dohledáním podle jména); Tags jako Dropdown multiselect;
+       SMAZAT hint "Free text for now; becomes its own table in PHASE2."
+   [ ] components/InstallationDetailDialog.tsx: štítky jako badge,
+       repozitáře čtené přímo z instalace
+   [ ] pages/RepositoriesPage.tsx: filtr na instalaci vedle filtru na
+       aplikaci, sloupec Instalace, v dialogu výběr instalace.
+       Komentář na řádcích 64-68 dnes tvrdí PŘESNÝ OPAK nového modelu.
+
+4. DOKUMENTACE
+   [ ] Podle CLAUDE-planning-standards.MD založit
+       ai-implementation-plan/10_schema_normalization.md s checklistem
+   [ ] Přepsat tvrzení, která přestala platit:
+       4_ef_core_model_and_migration.md:26 (tabulka analýzy)
+       4_ef_core_model_and_migration.md:54-55 ("Tags stays a plain string")
+       9_frontend_ux_overhaul_and_fixes.md:129 ("Tags remain free text")
+       README.md:184 ("Tags is still free text") + sekce s modelem
+       progress.txt ("= celkem 8 tabulek", "Tags: zůstává text")
+       PREHLED-projektu-CZ.txt
+
+5. ZÁVĚREČNÁ VERIFIKACE
+   [ ] dotnet build - každá odstraněná stringová vlastnost je chyba
+       překladu přesně tam, kde je potřeba zásah; čistý build =
+       žádné vynechané místo
+   [ ] pnpm run test (29 upravených + ~11 nových)
+   [ ] pnpm run build + pnpm run lint ve frontendu
+   [ ] Čistá databáze musí naseedovat: 5 instalací, 3 RootPaths,
+       4 PhysicalPaths, 4 Tags, 9 InstallationTags, 3 AppRepositories,
+       8 InstallationRepositories
+   [ ] Proklikání v prohlížeči (skript ze scratchpadu jde rozšířit):
+       založit instalaci s existující cestou i s nově napsanou;
+       změnit štítky; filtrovat podle štítku a root path;
+       hledat jméno štítku a ověřit, že počet záznamů NENÍ nafouklý;
+       přidat repozitář jedné instalaci a ověřit, že u sesterské není;
+       na Lookups zkusit smazat štítek v použití
+   [ ] Swagger /swagger: InstallationUpsertDto ukazuje rootPathId,
+       physicalPathId, tagIds
+
+
+---------------------------------------------------------------------
+RIZIKA
+---------------------------------------------------------------------
+
+  - Ruční SQL v migraci netestuje xUnit (SQLite + EnsureCreated).
+    Nácvik proti skutečnému SQL Serveru je POVINNÝ, ne volitelný.
+  - MigrateAndSeedOnStartup=true spustí migraci pouhým dotnet run.
+    Záloha před prvním spuštěním po merge.
+  - STRING_SPLIT vyžaduje compat level >= 130, STRING_AGG 2017+.
+  - Znásobení řádků v CountAsync, pokud někdo přepíše predikát štítků
+    na join -> hlídá test Searching_by_tag_does_not_multiply_the_row_count.
+  - Mezery a velikost písmen v cestách se pod novým unikátním indexem
+    slijí -> LTRIM(RTRIM(...)) při insertu i joinu.
+  - Down() u repozitářů je ztrátový (M:N zpět na jeden sloupec).
+
+=====================================================================

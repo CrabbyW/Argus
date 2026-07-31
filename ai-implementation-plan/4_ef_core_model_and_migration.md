@@ -22,12 +22,22 @@ actually identifies*:
 | `AppStageName` | `AppStages` lookup | Closed set: Staging/RC0/Main/PenTest/Mirror |
 | `ProcessorArchitecture` | `ProcessorArchitectures` lookup | Closed set: x86/x64/arm/arm64 |
 | `DnsName` | `DnsEndpoints` lookup | **The key case**: a DNS name can be a load balancer pointing at several machines, so it cannot live on the installation row |
-| `AppRepositories` | `AppRepositories` table, FK → `Applications` | A repository is where the *application's source* lives, not a property of one deployment; 1:N from the app |
-| `RootPath`, `PhysicalPath`, `IsActive`, `ValidFromDate`, `ValidToDate`, `IsEnabled`, `Tags` | `Installations` columns | Genuinely per-installation values, not shared |
+| `AppRepositories` | `AppRepositories` table, M:N via `InstallationRepositories` | A repository is a shared source location; several installations are built from the same url |
+| `RootPath` | `RootPaths` lookup | Shared: many installations sit at `/` |
+| `PhysicalPath` | `PhysicalPaths` lookup | Shared, with a caveat — see Notes |
+| `Tags` | `Tags` lookup, M:N via `InstallationTags` | A tag is a shared vocabulary, not a per-row string |
+| `IsActive`, `ValidFromDate`, `ValidToDate`, `IsEnabled` | `ApplicationInstallations` columns | Genuinely per-installation values, not shared |
 | login credentials | `ApplicationUser` | Separate concern (auth) |
 
-Result: **8 tables** — 5 lookups + `Installations` (the fact table) + `AppRepositories` +
-`ApplicationUser`.
+Result: **13 tables** — 8 plain lookups + `AppRepositories` + `ApplicationInstallations` (the
+fact table) + `InstallationTags` + `InstallationRepositories` + `ApplicationUser`.
+
+> **Superseded, 2026-07-30.** This table originally stopped at 8 tables, leaving `RootPath`,
+> `PhysicalPath` and `Tags` as plain columns and hanging `AppRepositories` off `Applications`.
+> The roadplan lists nine shared values, each needing its own lookup filled before the
+> installation row exists, so all four were normalized. Entities were renamed at the same time
+> to match the roadplan: `Application` → `AppName`, `AppStage` → `AppStageName`,
+> `Installation` → `ApplicationInstallation`. See `10_schema_normalization.md`.
 
 ---
 
@@ -51,9 +61,16 @@ Result: **8 tables** — 5 lookups + `Installations` (the fact table) + `AppRepo
 
 ## Notes
 
-- **`Tags` stays a plain string** for now, exactly as `roadplan` marks it (`Tbd: PHASE2`) and
-  as flagged in `1_argus_demo_build.md`. Promoting it to `Tags` + `InstallationTags` tables is
-  a later change; it is isolated to one column, so the migration cost is low.
+- **`Tags` is its own table** as of 2026-07-30 (`Tags` + `InstallationTags`). It was a plain
+  `;`-joined string during the demo build, which `roadplan` marked `Tbd: PHASE2`. That phase is
+  done. Note the consequence recorded in `10_schema_normalization.md`: tag search and filtering
+  must use `.Any()`, never a join, or `CountAsync` inflates every page count.
+- **`PhysicalPaths` as a shared lookup is imperfect and accepted.** Two installations on
+  *different machines* legitimately share `c:\inetpub\callcenter.rc0`; normalized, that is one
+  row, so renaming it rewrites the path on both machines even though they are different disks.
+  The table also grows roughly 1:1 with installations. The roadplan lists it as its own lookup,
+  so the trade is taken deliberately; the installation form uses a type-ahead combobox rather
+  than a bare dropdown to keep it usable.
 - **`DnsEndpointId` is nullable** (assumption confirmed as reasonable): a background service
   or console app installation legitimately has no DNS name. All other FKs are required.
 - **Soft delete:** `IsEnabled` is the soft-delete flag (`0` hidden, `1` active) and is applied

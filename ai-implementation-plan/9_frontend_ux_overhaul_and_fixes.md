@@ -1,8 +1,9 @@
 # Plan: Frontend UX Overhaul and Correctness Fixes
 
 **Date:** 2026-07-29
-**Status:** `In Progress` — all code complete; browser click-through and the file deletion in
-section E are the only items outstanding.
+**Status:** `Complete` — 2026-07-30. The browser click-through in Verification below was run
+against the live stack (22 checks, all passing, including the load-balancer regression), and the
+file deletion in section E is done.
 **Description:** The app runs end to end, but a review against `roadplan` found one
 data-corrupting bug, two silent-failure bugs, and a UI that does not behave like a website
 (no URL routing, native `window.confirm` dialogs, no success feedback, no favicon). This plan
@@ -78,15 +79,16 @@ including AppRepositories CRUD.
 - [x] Fix the database section and step 3 of `PREHLED-projektu-CZ.txt`
 - [x] Record the LocalDB migration and the admin password reset — both are now written up in
       `2_environment_setup.md`, including the standards violation itself
-- [ ] Delete `docker-compose.yml` and `.env.example` _(blocked: file deletion refused by the
-      permission classifier — needs the user to run it; `.env.example` held only the
-      compose password and nothing in the stack loads `.env`)_
+- [x] Delete `docker-compose.yml` and `.env.example` _(done 2026-07-30. `.env.example` held only
+      the compose password and nothing in the stack loads `.env`. The non-Windows path LocalDB
+      cannot serve is now written up in the README instead of implied by a compose file.)_
 
 ---
 
 ## Verification
 
-1. `pnpm run db:up`, `pnpm run dev:api`, `pnpm run dev:frontend`; sign in as `admin` / `Argus2026`.
+1. `pnpm run db:up`, `pnpm run dev:api`, `pnpm run dev:frontend`; sign in as `msfadmin` with the
+   password in `Seed:AdminPassword`.
 2. **Load-balancer regression (the bug that motivated this plan):** rename `paha.ga.local`
    under Lookups → DNS endpoints, save, reopen. `IsLoadBalancer` must still be true. Confirm in
    SQL: `SELECT DnsName, IsLoadBalancer FROM DnsEndpoints`.
@@ -124,4 +126,6 @@ including AppRepositories CRUD.
   ongoing data corruption.
 - Item B's query-string state and item D's extra filters touch the same component. Doing B
   before D avoids reworking the filter wiring twice.
-- Tags remain free text (roadplan marks them `Tbd: PHASE2`), unchanged by this plan.
+- Tags remained free text at the time of this plan (roadplan marked them `Tbd: PHASE2`).
+  **No longer true:** on 2026-07-30 they became their own table with an M:N link, and the
+  installation form now offers a multiselect. See `10_schema_normalization.md`.

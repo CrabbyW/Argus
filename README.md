@@ -44,7 +44,7 @@ You need: .NET SDK 10, Node + pnpm. The database is SQL Server **LocalDB**, whic
 SQL Server Express / SSDT installers and runs as an on-demand local process (~150 MB) — no Docker,
 no container, no WSL2 VM.
 
-```bash
+```powershell
 # 1. Start the database
 pnpm run db:up            # sqllocaldb start MSSQLLocalDB
 
@@ -52,10 +52,11 @@ pnpm run db:up            # sqllocaldb start MSSQLLocalDB
 pnpm install
 
 # 3. Configure the API
-cp apps/netcorebackends/Argus.Api/appsettings.Example.json \
-   apps/netcorebackends/Argus.Api/appsettings.Development.json
-# then edit it: a Jwt:SigningKey of 32+ characters. The connection string already points at
-# LocalDB and uses your Windows account — LocalDB does not support SQL username/password auth.
+Copy-Item apps/netcorebackends/Argus.Api/appsettings.Example.json `
+          apps/netcorebackends/Argus.Api/appsettings.Development.json
+# then edit it: a Jwt:SigningKey of 32+ characters, and a Seed:AdminPassword. The connection
+# string already points at LocalDB and uses your Windows account — LocalDB does not support
+# SQL username/password auth.
 
 # 4. Start the API — it applies migrations and seeds demo data on first run
 pnpm run dev:api          # http://localhost:5080, Swagger at /swagger
@@ -64,9 +65,20 @@ pnpm run dev:api          # http://localhost:5080, Swagger at /swagger
 pnpm run dev:frontend     # http://localhost:4200
 ```
 
-Sign in with `msfadmin` and the password in `Seed:AdminPassword`. **Change it before this is
-reachable by anyone but you.** Note that `DbSeeder` only creates that user when the table is
-empty — changing the setting later does nothing unless the `ApplicationUsers` row is removed.
+Sign in as **`msfadmin`** (the username `DbSeeder` creates) with whatever you put in
+`Seed:AdminPassword`. Two things about that password:
+
+- **`DbSeeder` only seeds a user when the table is empty.** Once the database exists, editing
+  `Seed:AdminPassword` does nothing — the seeder skips the whole step. To change the password you
+  have to delete the row from `ApplicationUsers` and restart the API.
+- **It is a demo credential.** Change it before this is reachable by anyone but you, and see the
+  pre-deployment checklist below.
+
+**Not on Windows?** LocalDB is Windows-only. Everything else runs anywhere, so point
+`ConnectionStrings:ArgusDatabase` at any SQL Server you can reach — a local install or a
+`mcr.microsoft.com/mssql/server` container on port 1433 — using SQL authentication:
+`Server=localhost,1433;Database=Argus;User Id=sa;Password=...;TrustServerCertificate=True;`.
+Nothing else changes; the migrations and the code are provider-identical.
 
 The UI has three sections, each with its own address:
 
@@ -81,6 +93,25 @@ The UI has three sections, each with its own address:
 
 ---
 
+## Tests, lint, CI
+
+```bash
+pnpm run test     # xUnit suite for the API (SQLite in memory — no SQL Server needed)
+pnpm run lint     # eslint over the frontend
+pnpm run build    # dotnet build + tsc -b + vite build
+```
+
+The test suite runs the real EF model against SQLite in memory rather than the InMemory provider,
+so unique indexes, filtered indexes and `EF.Functions.Like` behave as they do in production. It
+covers the two defects that have actually bitten this project — reinstalling a decommissioned
+deployment, and a lookup edit silently clearing a field it never read — plus the installation
+filter, auth and password hashing.
+
+`.github/workflows/ci.yml` runs lint, build and test on every push and pull request. It needs no
+database, so it runs on `ubuntu-latest`.
+
+---
+
 ## The data model
 
 The point of Argus is that nothing shared is written twice. Each shared value lives in its own
@@ -88,18 +119,36 @@ lookup table and is referenced by `Id`, so renaming `GAIIS1` is a single-row edi
 installation picks up at once.
 
 ```
-Machines ─┐
-Applications ─┤
-AppStages ─┼──> Installations   (the fact table: 5 FKs + per-installation values)
-ProcessorArchitectures ─┤
-DnsEndpoints ─┘            (nullable — a worker has no public endpoint)
+Machines ──────────────┐
+AppNames ──────────────┤
+AppStageNames ─────────┤
+ProcessorArchitectures ─┼──> ApplicationInstallations
+DnsEndpoints ──────────┤     (the fact table: 7 FKs + its own dates and flags)
+RootPaths ─────────────┤
+PhysicalPaths ─────────┘     DnsEndpointId and PhysicalPathId are nullable —
+                             a background worker has neither
 
-Applications ──> AppRepositories   (git:// svn:// bitbucket://)
+Tags ──< InstallationTags >────────┐
+AppRepositories ──< InstallationRepositories >──┴──> ApplicationInstallations
+
 ApplicationUser                    (login)
 ```
 
+Thirteen tables: eight plain lookups, `AppRepositories`, the installation itself, two link
+tables and the user.
+
+The installation row holds **no names of its own** — every shared value is an `Id` into a lookup
+that must already exist. Its own columns are `IsActive`, `ValidFromDate`, `ValidToDate`,
+`IsEnabled`, `CreatedUtc`, `ModifiedUtc`: values that genuinely belong to one deployment and are
+not shared with any other.
+
 `DnsEndpoints` is a table rather than a column because one DNS name can be a **load balancer**
 fronting several machines — the seed data includes exactly that case.
+
+`Tags` and `AppRepositories` are many-to-many. A plain foreign key for repositories would have
+stored the same url once per installation, which is the duplication the whole model exists to
+prevent. The link tables carry no `IsEnabled`: soft delete lives on the ends of a relationship,
+never on the relationship itself.
 
 Full analysis: [`ai-implementation-plan/4_ef_core_model_and_migration.md`](ai-implementation-plan/4_ef_core_model_and_migration.md).
 
@@ -121,9 +170,11 @@ apps/
           Enums/
         Migrations/        InitialCreate
       Middleware/          GlobalExceptionHandlerMiddleware
+    Argus.Api.Tests/       xUnit, SQLite in memory
   frontend/                Vite + React + Fluent UI
 libs/                      reserved for shared code
 ai-implementation-plan/    numbered plan files, one per phase
+.github/workflows/         CI: lint, build, test
 secrets/                   gitignored
 ```
 
@@ -148,8 +199,67 @@ rather than silently dropped.
 ## Scope
 
 This is a **deploy-ready demo**: feature-complete skeleton, seed data only. Loading real data
-happens through the app itself and is out of scope. `Tags` is still free text
-(`roadplan` marks it `Tbd: PHASE2`).
+happens through the app itself and is out of scope.
+
+All nine shared values from `roadplan` are now their own tables, filled before the installation
+row that references them. `Tags` became `Tags` + `InstallationTags` on 2026-07-30 — it is no
+longer free text — and `AppRepositories` moved from the application onto the installation as a
+many-to-many link. See `ai-implementation-plan/10_schema_normalization.md`.
+
+### Known deviation from `roadplan`
+
+**Database authentication.** The roadplan asks for SQL username/password authentication. That
+requirement assumed the database ran in a container; after Docker was dropped on 2026-07-30 the
+database is LocalDB, and **LocalDB has no SQL authentication at all** — it only accepts the Windows
+account that owns the instance. The connection string therefore uses `Trusted_Connection=True`.
+This is the one place the implementation knowingly differs from the roadplan, it is recorded here
+and nowhere else, and it disappears by itself on any real SQL Server: point
+`ConnectionStrings:ArgusDatabase` at one and use SQL auth as described under *Running it*.
+
+The full flow has been exercised in a browser end to end — login (including a rejected password),
+the grid with search, facets, sorting and paging, create → edit → soft delete, and the lookup
+screens including a machine rename propagating to every installation that references it.
+
+Re-verified on 2026-07-31 against the normalized schema: build, 68 tests, `tsc` and lint all clean,
+the database rebuilt from `InitialCreate` to the exact seed counts, and the `10_schema_normalization.md`
+§6 walkthrough run end to end. It found one bug — deep-linked filters were dropped on load — which is
+fixed and recorded in that file's §9.
+
+---
+
+## Before anyone else can reach this
+
+Everything below is deliberately configured for a local demo. None of it is safe on a shared
+network, and none of it is difficult to change:
+
+- **Rotate the admin password.** `msfadmin` with a demo password is a demo credential. Because the
+  seeder skips a non-empty table, this means deleting the `ApplicationUsers` row and restarting
+  with a new `Seed:AdminPassword` — or adding a password-change endpoint, which does not exist yet.
+- **Move `Jwt:SigningKey` out of `appsettings`.** It is a symmetric HMAC key: whoever holds it can
+  mint tokens for any user. Environment variable, user-secrets or a secret store — the file is
+  gitignored, which is not the same as protected. Startup already refuses to boot without 32+
+  characters.
+- **Turn off `Database:MigrateAndSeedOnStartup`.** Convenient locally, wrong anywhere schema
+  changes should be applied deliberately; run `pnpm run db:migrate` as a deployment step instead.
+  Leaving it on also re-seeds demo lookup rows into an empty production database.
+- **Set `Cors:AllowedOrigins` and `AllowedHosts`.** They are `http://localhost:4200` and `*`.
+- **Serve over HTTPS.** The token sits in `localStorage` and travels on every request.
+- **Decide on packaging.** There are no container images and no deployment pipeline — see
+  `ai-implementation-plan/8_deploy_packaging.md`, where this is deliberately left open.
+
+---
+
+## Where the rest of the documentation lives
+
+This README is the entry point; everything else is history or reference.
+
+| File | What it is |
+|---|---|
+| `roadplan` | The original brief — what the app must do. Still current. |
+| `ai-implementation-plan/1..9_*.md` | One plan per phase, each with its own checklist and notes on deviations. Reference. |
+| `progress.txt` | Dated build log in Czech: what was done when, and why. Historical. |
+| `PREHLED-projektu-CZ.txt` | Czech orientation and glossary, written before any code existed. Historical — its "there is no code yet" framing no longer applies. |
+| `CLAUDE-dotnet.md`, `CLAUDE-planning-standards.MD` | Conventions inherited from another project; see Conventions above. |
 
 ## API
 
