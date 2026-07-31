@@ -224,6 +224,50 @@ public class InstallationLinkTests
         }
     }
 
+    /// <summary>
+    /// A repository shared by two installations must report both of them on either detail payload.
+    ///
+    /// The detail query has to include the repository's own link collection; without it, EF fills
+    /// that collection by relationship fixup alone and it holds only the installation being read.
+    /// Nothing looks broken — the detail screen shows the right repository — but the payload
+    /// disagrees with GET /api/apprepositories, and anything that sent it back in a PUT would
+    /// unlink the repository from its siblings, since InstallationIds is the complete target state.
+    /// </summary>
+    [Fact]
+    public async Task A_shared_repository_reports_every_installation_on_the_detail_payload()
+    {
+        using var testDb = TestDb.CreateSeeded();
+
+        int firstId;
+        int secondId;
+        int repoId;
+
+        await using (var db = testDb.NewContext())
+        {
+            repoId = await RepositoryIdAsync(db, "git://git.local/callcenter.git");
+            var otherPath = await TestDb.RootPathIdAsync(db, "/callcenter.rc0");
+
+            var first = await new InstallationService(db).CreateInstallationAsync(
+                Deployment(repositoryIds: new List<int> { repoId }));
+
+            var second = await new InstallationService(db).CreateInstallationAsync(
+                Deployment(rootPathId: otherPath, repositoryIds: new List<int> { repoId }));
+
+            firstId = first.Id;
+            secondId = second.Id;
+        }
+
+        await using (var db = testDb.NewContext())
+        {
+            var detail = await new InstallationService(db).GetInstallationByIdAsync(firstId);
+
+            Assert.NotNull(detail);
+            var repo = Assert.Single(detail!.AppRepositories);
+            Assert.Equal(repoId, repo.Id);
+            Assert.Equal(new[] { firstId, secondId }.OrderBy(x => x), repo.InstallationIds.OrderBy(x => x));
+        }
+    }
+
     [Fact]
     public async Task A_tag_that_does_not_exist_is_rejected()
     {

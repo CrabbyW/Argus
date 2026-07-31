@@ -297,7 +297,10 @@ public class InstallationService : IInstallationService
 
         if (!tracking)
         {
-            query = query.AsNoTracking();
+            // Identity resolution, not plain AsNoTracking: the include below walks
+            // installation -> repository -> installations, and EF rejects a cycle in a plain
+            // no-tracking query. With one identity map per query the cycle is fine.
+            query = query.AsNoTrackingWithIdentityResolution();
         }
 
         return query
@@ -309,7 +312,15 @@ public class InstallationService : IInstallationService
             .Include(x => x.RootPath)
             .Include(x => x.PhysicalPath)
             .Include(x => x.InstallationTags).ThenInclude(link => link.Tag)
-            .Include(x => x.InstallationRepositories).ThenInclude(link => link.AppRepository);
+            .Include(x => x.InstallationRepositories)
+                .ThenInclude(link => link.AppRepository)
+                    // Without this the repository's own link collection is filled by relationship
+                    // fixup alone, so it holds just the installation being read and the detail
+                    // payload reports a truncated InstallationIds. Anything that sent such a
+                    // repository back in a PUT would unlink it from its sibling installations,
+                    // because AppRepositoryService.UpdateAsync treats InstallationIds as the
+                    // complete target state.
+                    .ThenInclude(repo => repo.InstallationRepositories);
     }
 
     /// <summary>
