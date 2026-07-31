@@ -118,8 +118,15 @@ export function App() {
 
       <main className={styles.main}>
         <Routes>
-          <Route path="/" element={<Navigate to="/installations" replace />} />
-          <Route path="/login" element={<Navigate to="/installations" replace />} />
+          {/*
+            The query string is carried across this redirect on purpose. The installations
+            filters live entirely in it, so dropping it here would silently turn a shared
+            link — "/?machine=2", or any filtered view a colleague was sent — into an
+            unfiltered grid, with no error to show for it. Same reason on /login: signing in
+            from a filtered address has to land on that filter, not on everything.
+          */}
+          <Route path="/" element={<Navigate to={{ pathname: '/installations', search: location.search }} replace />} />
+          <Route path="/login" element={<Navigate to={{ pathname: '/installations', search: location.search }} replace />} />
           <Route path="/installations" element={<InstallationsPage />} />
           {/* :id is an installation id, "new", or "<id>/view" for the read-only detail. */}
           <Route path="/installations/:id" element={<InstallationsPage />} />
