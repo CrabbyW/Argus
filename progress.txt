@@ -1,14 +1,16 @@
 =====================================================================
  ARGUS - PROGRESS LOG
 =====================================================================
- Poslední aktualizace: 2026-07-30
+ Poslední aktualizace: 2026-07-31
  Kde jsme skončili a čím zítra navázat.
 
  POZOR: tenhle soubor je HISTORICKÝ deník stavby. Aktuální stav, postup
  spuštění a předávací checklist jsou v README.md - ten je vstupní bod.
 
- PŘEKONÁNO 2026-07-30 (normalizace schématu). Vše níže popisuje stav
- s PĚTI číselníky a OSMI tabulkami. Ten stav už neplatí:
+ PŘEKONÁNO 2026-07-30 (normalizace schématu). Všechno od sekce
+ "KDE JSME (aktuální stav k 2026-07-30)" níže popisuje stav s PĚTI
+ číselníky a OSMI tabulkami. Ten stav už neplatí. Sekce 2026-07-31
+ hned pod tímhle rámečkem platná JE - je to nejnovější záznam.
 
    - číselníků je DEVĚT (přibyly RootPaths, PhysicalPaths, Tags;
      AppRepositories jsou devátá sdílená hodnota, ale s vlastní
@@ -23,6 +25,100 @@
 
  Aktuální plán a postup ověření: ai-implementation-plan/10_schema_normalization.md
 =====================================================================
+
+
+---------------------------------------------------------------------
+2026-07-31 - OVĚŘENO NA WINDOWS, NORMALIZACE UZAVŘENA
+---------------------------------------------------------------------
+
+Normalizace z 2026-07-30 byla do včerejška NAPSANÁ, ale NESPUŠTĚNÁ -
+prostředí, ve kterém vznikla, nemělo .NET SDK ani dosažitelný registr
+balíčků. Dneska se to celé pustilo na Windows (.NET 10.0.302, Node 24,
+pnpm 11.17). Výhrada z plánu 10, §0.6 tím padá.
+
+VÝSLEDKY BRAN:
+  [x] dotnet build (Argus.slnx) ....... 0 chyb, 0 varování
+  [x] pnpm run test ................... 68 testů zelených, 0 spadlých
+  [x] pnpm run build (tsc -b + vite) .. čisté
+  [x] pnpm run lint ................... čisté
+  [x] dotnet ef migrations list ....... jediná 20260730194553_InitialCreate
+  [x] seed počty ...................... všech 13 tabulek přesně dle plánu,
+        InstallationRepositories = 7 (ne 8, jak tvrdil starý plan.txt)
+  [x] Swagger InstallationUpsertDto ... jen Id (rootPathId, physicalPathId,
+        tagIds, repositoryIds), ŽÁDNÁ jména - pravidlo "v UI dropdown,
+        nikdy volný text" drží i na úrovni kontraktu
+
+  Přepsaný frontend (~2750 řádků proti kontraktu, který se změnil na
+  patnácti místech) se přeložil napoprvé. To byl bod 1 v žebříčku rizik.
+
+STAV DEV DATABÁZE PŘED PŘESTAVBOU (kontrolováno, ne odhadnuto):
+  V databázi bylo pořád STARÉ schéma s osmi tabulkami (Applications,
+  AppStages, Installations) a __EFMigrationsHistory obsahovala přesně ty
+  dvě smazané migrace - potvrzená obava z plánu 10, §0.1. Všech 5 instalací
+  mělo shodné CreatedUtc (2026-07-29 17:12:45) a ModifiedUtc NULL, čili
+  jedna seed transakce, nic ručně vyplněného. Export byl opravdu zbytečný,
+  záloha se přesto udělala. Pak drop + update + seed.
+
+  [x] Ověřeno proti běžícímu API: dotaz na load balancer (paha.ga.local
+        vrací SERVER1 i GAIIS1 - hlavní otázka ze zadání), každý facet
+        zvlášť zužuje výsledek, založení nové kořenové cesty přes
+        najdi-nebo-vytvoř včetně souběhu na duplicitní název, přidání a
+        odebrání tagu, měkké smazání a znovunainstalování na uvolněné
+        místo, přejmenování stroje se propíše do všech instalací,
+        IsLoadBalancer i SortOrder přejmenování přežijí, číselník v
+        použití nejde smazat, AppRepositories přes obecný endpoint zápis
+        odmítnou.
+  [x] Proklikáno v prohlížeči (headless Chrome přes CDP): přihlášení i
+        špatné heslo, mřížka s odznaky tagů, všech osm záložek číselníků
+        se správnými počty, detail instalace, editační dialog naplněný
+        z Id. Konzole čistá, jediná 4xx byla očekávaná 401 ze zkoušky
+        špatného hesla.
+  [x] Databáze na konci vrácena do čistého seedu a počty přepočítány.
+
+NALEZENA A OPRAVENA CHYBA - filtry v odkazu se zahazovaly:
+  Přesměrování z "/" na "/installations" bylo <Navigate to="/installations">,
+  což zahodí query string. Otevření /?machine=2 - tedy odfiltrovaný pohled
+  poslaný kolegovi, přesně to, co plán 10 §4.4 vyžaduje - skončilo na
+  NEodfiltrované mřížce s vynulovanými facety a bez jakékoli chybové hlášky.
+  Zákeřné na tom bylo, že readFilter i writeFilter byly správně, tsc a lint
+  čisté a směr UI -> URL fungoval; ukázalo se to až při načtení adresy
+  zvenčí. Opraveno předáním location.search přes obě přesměrování.
+  Je to stejný druh selhání jako riziko č. 6 (tiché navázání query stringu),
+  jen o patro výš: filtr se nezahodí viditelně, a neodfiltrovaná mřížka
+  vypadá úplně stejně jako správná.
+
+DVĚ VĚCI ZAZNAMENANÉ, ZÁMĚRNĚ NEZMĚNĚNÉ:
+  - Přidáno ILookupDescriptor.EntityType (jedna vlastnost, typeof(TEntity)).
+    Test na délku názvu potřebuje skutečnou šířku sloupce daného číselníku;
+    bez toho by si musel ručně opsat mapování druh -> entita, což je přesně
+    ten rozjezd, kvůli kterému LookupHandler.MaxNameLength čte z EF modelu.
+  - GET /api/installations/{id} vrací u každého repozitáře v appRepositories
+    zkrácené installationIds - jen tu instalaci, na kterou se člověk dívá,
+    zatímco GET /api/apprepositories je vrací všechny. Dneska to nevadí,
+    detail i editace čtou jen id, URL a typ. Je to ale past: cokoli, co by
+    repozitář z detailu poslalo zpátky v PUT, by ho odpojilo od sesterských
+    instalací. Neopraveno, protože to je zásah do projekce bez současného
+    konzumenta.
+
+ZACOMMITOVÁNO (větev normalizace-ciselniku, 90 souborů, +5637/-1829):
+  4f56043  Dokumentace srovnaná s devíti číselníky a záznam o ověření
+  96078b5  Filtry v odkazu se při načtení stránky už nezahodí
+  dab8c00  Devět číselníků, instalace jen jako cizí klíče
+  c1fe387  Docker nahrazen LocalDB, přidán ESLint a CI
+
+  Backend a frontend jsou schválně v jednom commitu - frontend se proti
+  starému kontraktu nepřeloží, takže rozdělením by vznikl commit, který
+  nejde sestavit. Nepushnuto.
+
+ZBÝVÁ:
+  - Sloučit větev do master (git merge normalizace-ciselniku projde
+    fast-forward), nebo ji nechat na revizi.
+  - Čtyři soubory signal-2026-07-30-*.png v kořeni nejsou v gitu. Vypadají
+    jako referenční snímky tabulky, podle které vznikl datový model - buď
+    je zacommitovat, nebo přidat do .gitignore.
+  - Rozhodnout o zkrácených installationIds výše.
+  - Body pro reálné nasazení beze změny - viz README, "Before anyone else
+    can reach this".
 
 
 ---------------------------------------------------------------------
