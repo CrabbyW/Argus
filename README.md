@@ -256,6 +256,7 @@ This README is the entry point; everything else is history or reference.
 | File | What it is |
 |---|---|
 | `roadplan` | The original brief — what the app must do. Still current. |
+| `docs/reference/zdrojova-tabulka-*.png` | Screenshots of the spreadsheet the brief came with, one per sheet. The source the data model was derived from. |
 | `ai-implementation-plan/1..9_*.md` | One plan per phase, each with its own checklist and notes on deviations. Reference. |
 | `progress.txt` | Dated build log in Czech: what was done when, and why. Historical. |
 | `PREHLED-projektu-CZ.txt` | Czech orientation and glossary, written before any code existed. Historical — its "there is no code yet" framing no longer applies. |

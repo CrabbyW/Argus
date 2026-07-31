@@ -12,6 +12,11 @@ EF Core: entities in C#, explicit `IEntityTypeConfiguration<T>` per entity, one 
 
 ## Data model analysis (the requested "necht claude udela analyzu")
 
+Source material: `docs/reference/zdrojova-tabulka-*.png` — screenshots of the spreadsheet the
+brief came with, one per sheet (`Machines`, `AppNames`, `AppStageNames`, `ApplicationInstalation`).
+They are where the entity names and the `Id` + name shape come from, and why the entities were
+later renamed to match.
+
 `roadplan` lists one installation's attributes flat. Splitting them by *what the value
 actually identifies*:
 

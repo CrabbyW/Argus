@@ -120,6 +120,49 @@ ZBÝVÁ:
   - Body pro reálné nasazení beze změny - viz README, "Before anyone else
     can reach this".
 
+  -> VŠECHNY TŘI ZAVŘENY 2026-07-31 VEČER, viz sekce hned pod tímhle.
+
+
+---------------------------------------------------------------------
+2026-07-31 (večer) - VĚTEV UZAVŘENA
+---------------------------------------------------------------------
+
+ZKRÁCENÉ installationIds OPRAVENY:
+  Detailní dotaz dotahoval u repozitáře jen vazbu na právě čtenou instalaci,
+  zbytek doplňoval EF fixupem - čili ničím. Doplněn ThenInclude na
+  repo.InstallationRepositories.
+
+  Narazilo se přitom na věc, kterou plán nepředpokládal: cesta
+  instalace -> repozitář -> instalace je cyklus a EF ho v prostém
+  AsNoTracking odmítne ("Cycles are not allowed in no-tracking queries").
+  Řešeno přechodem na AsNoTrackingWithIdentityResolution - jedna identitní
+  mapa na dotaz, cyklus tím projde. Dotaz se používá výhradně
+  s tracking:false (jediný volající je GetInstallationByIdAsync), zapisovací
+  cesta se tedy nezměnila.
+
+  Regresní test v InstallationLinkTests: repozitář na dvou instalacích,
+  detail jedné z nich musí vrátit obě. Ověřeno, že hlídá - po dočasném
+  odebrání ThenInclude spadl na "Collections differ".
+
+  Ověřeno i naživo proti běžícímu API: /api/apprepositories vrací
+  repo 1 a 2 -> [1,2,3], repo 3 -> [4], a detail každé z pěti instalací
+  vrací u svých repozitářů přesně totéž. Před opravou by detail instalace 2
+  hlásil [2]. Databáze se nezapisovalo, jen čtení.
+
+PODKLADY DATOVÉHO MODELU ZACOMMITOVÁNY:
+  Čtyři signal-*.png jsou snímky zdrojové excelové tabulky - listy Machines,
+  AppNames, AppStageNames, ApplicationInstalation. Je z nich vidět, odkud
+  se vzaly názvy entit (a proč se při normalizaci přejmenovávaly zpátky
+  k nim). Přesunuty do docs/reference/ pod popisné názvy, odkaz doplněn
+  do plánu 4 a do tabulky dokumentace v README.
+
+BRÁNY: dotnet build 0/0, 69 testů zelených (68 + nový), lint i build čisté.
+
+BEZE ZMĚNY ZÁMĚRNĚ:
+  - ILookupDescriptor.EntityType zůstává, důvod viz sekce výše.
+  - Body pro reálné nasazení (README, "Before anyone else can reach this")
+    jsou rozhodnutí pro provoz, ne nedodělky. Otevřené dál.
+
 
 ---------------------------------------------------------------------
 KDE JSME (aktuální stav k 2026-07-30)
