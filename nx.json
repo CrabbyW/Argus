@@ -17,7 +17,10 @@
     },
     "lint": {
       "cache": true
+    },
+    "test": {
+      "cache": true
     }
   },
-  "defaultBase": "main"
+  "defaultBase": "master"
 }

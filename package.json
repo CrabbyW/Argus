@@ -9,6 +9,7 @@
     "dev:frontend": "nx run argus-frontend:serve",
     "dev:api": "nx run argus-api:serve",
     "build": "nx run-many -t build",
+    "test": "nx run-many -t test",
     "lint": "nx run-many -t lint",
     "db:up": "sqllocaldb start MSSQLLocalDB",
     "db:down": "sqllocaldb stop MSSQLLocalDB",

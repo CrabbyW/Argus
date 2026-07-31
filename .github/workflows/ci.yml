@@ -1,0 +1,40 @@
+name: CI
+
+# Build and test both apps on every push and pull request. The test suite runs on SQLite in
+# memory (see Argus.Api.Tests/TestDb.cs), so no SQL Server — and therefore no Windows runner —
+# is needed here. Only local development depends on LocalDB.
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Install frontend dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Lint
+        run: pnpm run lint
+
+      - name: Build (API + frontend)
+        run: pnpm run build
+
+      - name: Test
+        run: pnpm run test

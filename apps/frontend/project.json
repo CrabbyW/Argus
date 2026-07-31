@@ -17,6 +17,13 @@
         "command": "pnpm run build",
         "cwd": "apps/frontend"
       }
+    },
+    "lint": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "pnpm run lint",
+        "cwd": "apps/frontend"
+      }
     }
   }
 }

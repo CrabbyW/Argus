@@ -18,6 +18,13 @@
         "cwd": "apps/netcorebackends"
       }
     },
+    "test": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "dotnet test Argus.Api.Tests/Argus.Api.Tests.csproj",
+        "cwd": "apps/netcorebackends"
+      }
+    },
     "migrate": {
       "executor": "nx:run-commands",
       "options": {
