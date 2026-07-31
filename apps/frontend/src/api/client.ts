@@ -138,11 +138,22 @@ export const api = {
   deleteLookupItem: (kind: LookupKind, id: number) =>
     request<boolean>(`/lookups/${kind}/${id}`, { method: 'DELETE' }),
 
-  // Repositories hang off an Application, not off a single installation.
-  getRepositories: (applicationId?: number | null) =>
-    request<AppRepository[]>(
-      `/apprepositories${applicationId ? `?applicationId=${applicationId}` : ''}`,
-    ),
+  /**
+   * Repositories are linked to installations many-to-many — one repository row, several links.
+   * Both filters are optional and independent: `installationId` answers "what is this
+   * installation built from", `appNameId` answers "what does this application use anywhere".
+   */
+  getRepositories: (filter: { installationId?: number | null; appNameId?: number | null } = {}) => {
+    const params = new URLSearchParams();
+    if (filter.installationId) {
+      params.set('installationId', String(filter.installationId));
+    }
+    if (filter.appNameId) {
+      params.set('appNameId', String(filter.appNameId));
+    }
+    const query = params.toString();
+    return request<AppRepository[]>(`/apprepositories${query ? `?${query}` : ''}`);
+  },
 
   createRepository: (payload: AppRepositoryUpsert) =>
     request<AppRepository>('/apprepositories', {

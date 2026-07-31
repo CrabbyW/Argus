@@ -3,18 +3,24 @@ using Argus.Api.Database.Entities.Enums;
 namespace Argus.Api.Database.Entities;
 
 /// <summary>
-/// A source-control location an <see cref="Application"/>'s code comes from
-/// (svn://..., git://..., bitbucket://...). One application may have several.
+/// A source-control location an installation's code comes from
+/// (svn://..., git://..., bitbucket://...).
+///
+/// The url is stored once and linked to every installation built from it through
+/// <see cref="InstallationRepository"/> — several installations of the same application normally
+/// share one repository, so hanging a copy off each of them would duplicate the same fact.
+///
+/// It implements <see cref="ILookupEntity"/> so it can be read through the generic lookup layer
+/// (a dropdown of repositories is the same query as any other kind), but its descriptor is marked
+/// read-only: <c>RepositoryType</c> and the installation links have nowhere to live in
+/// <c>LookupUpsertDto</c>, so writes go through <c>IAppRepositoryService</c>.
 /// </summary>
-public class AppRepository
+public class AppRepository : ILookupEntity
 {
     public int Id { get; set; }
 
-    public int ApplicationId { get; set; }
-
-    public Application Application { get; set; } = null!;
-
-    public string RepositoryUrl { get; set; } = string.Empty;
+    /// <summary>Stored in the <c>RepositoryUrl</c> column.</summary>
+    public string Name { get; set; } = string.Empty;
 
     public RepositoryType RepositoryType { get; set; } = RepositoryType.Unknown;
 
@@ -22,4 +28,7 @@ public class AppRepository
 
     /// <summary>Soft-delete flag: 0 = hidden, 1 = active.</summary>
     public bool IsEnabled { get; set; } = true;
+
+    public ICollection<InstallationRepository> InstallationRepositories { get; set; } =
+        new List<InstallationRepository>();
 }

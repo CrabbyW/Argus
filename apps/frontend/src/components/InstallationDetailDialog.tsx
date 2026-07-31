@@ -35,6 +35,7 @@ const useStyles = makeStyles({
     wordBreak: 'break-all',
   },
   repos: { margin: 0, paddingLeft: '18px' },
+  tagList: { display: 'flex', flexWrap: 'wrap', gap: '4px' },
   full: { gridColumn: '1 / -1' },
 });
 
@@ -117,7 +118,19 @@ export function InstallationDetailDialog({ installationId, onClose, onEdit }: Pr
                     dash
                   )}
                 </Row>
-                <Row label="Tags">{detail.tags ?? dash}</Row>
+                <Row label="Tags">
+                  {detail.tags.length === 0 ? (
+                    dash
+                  ) : (
+                    <div className={styles.tagList}>
+                      {detail.tags.map((tag) => (
+                        <Badge key={tag.id} appearance="tint" color="informative">
+                          {tag.name}
+                        </Badge>
+                      ))}
+                    </div>
+                  )}
+                </Row>
                 <Row label="Valid">
                   {detail.validFromDate} → {detail.validToDate ?? 'open'}
                 </Row>

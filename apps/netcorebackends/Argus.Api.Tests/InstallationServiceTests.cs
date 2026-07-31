@@ -1,3 +1,4 @@
+using Argus.Api.Database;
 using Argus.Api.Services;
 using Argus.Api.WebApiPoco.Installations;
 using Microsoft.EntityFrameworkCore;
@@ -7,20 +8,21 @@ namespace Argus.Api.Tests;
 public class InstallationServiceTests
 {
     private static InstallationUpsertDto Deployment(
-        string rootPath = "/",
+        int rootPathId = TestDb.RootSlash,
+        int? physicalPathId = TestDb.DiskDefault,
         int machineId = TestDb.Gaiis1,
-        int applicationId = TestDb.ProAssistNet,
+        int appNameId = TestDb.CallCenter,
         int stageId = TestDb.StageMain,
         string validFrom = "2026-01-01",
         string? validTo = null) => new()
         {
             MachineId = machineId,
-            ApplicationId = applicationId,
-            AppStageId = stageId,
+            AppNameId = appNameId,
+            AppStageNameId = stageId,
             ProcessorArchitectureId = TestDb.X64,
             DnsEndpointId = TestDb.PahaEndpoint,
-            RootPath = rootPath,
-            PhysicalPath = @"c:\inetpub\wwwroot\proassistnet",
+            RootPathId = rootPathId,
+            PhysicalPathId = physicalPathId,
             IsActive = true,
             ValidFromDate = DateOnly.Parse(validFrom),
             ValidToDate = validTo is null ? null : DateOnly.Parse(validTo)
@@ -61,7 +63,7 @@ public class InstallationServiceTests
         // Both periods survive: the retired row is still there for historical questions.
         await using (var assert = testDb.NewContext())
         {
-            var all = await assert.Installations.IgnoreQueryFilters().ToListAsync();
+            var all = await assert.ApplicationInstallations.IgnoreQueryFilters().ToListAsync();
 
             Assert.Equal(2, all.Count);
             Assert.Single(all, x => !x.IsEnabled);
@@ -84,13 +86,13 @@ public class InstallationServiceTests
         var first = await service.CreateInstallationAsync(Deployment());
         await service.DeleteInstallationAsync(first.Id);
 
-        db.Installations.Add(new Argus.Api.Database.Entities.Installation
+        db.ApplicationInstallations.Add(new Argus.Api.Database.Entities.ApplicationInstallation
         {
             MachineId = TestDb.Gaiis1,
-            ApplicationId = TestDb.ProAssistNet,
-            AppStageId = TestDb.StageMain,
+            AppNameId = TestDb.CallCenter,
+            AppStageNameId = TestDb.StageMain,
             ProcessorArchitectureId = TestDb.X64,
-            RootPath = "/",
+            RootPathId = TestDb.RootSlash,
             ValidFromDate = new DateOnly(2026, 6, 1)
         });
 
@@ -124,10 +126,12 @@ public class InstallationServiceTests
         await using var db = testDb.NewContext();
         var service = new InstallationService(db);
 
-        await service.CreateInstallationAsync(Deployment(rootPath: "/"));
-        await service.CreateInstallationAsync(Deployment(rootPath: "/proassistnet.mirror"));
+        var mirror = await TestDb.RootPathIdAsync(db, "/callcenter.mirror");
 
-        Assert.Equal(2, await db.Installations.CountAsync());
+        await service.CreateInstallationAsync(Deployment());
+        await service.CreateInstallationAsync(Deployment(rootPathId: mirror));
+
+        Assert.Equal(2, await db.ApplicationInstallations.CountAsync());
     }
 
     [Fact]
@@ -140,13 +144,13 @@ public class InstallationServiceTests
 
         var created = await service.CreateInstallationAsync(Deployment());
 
-        var dto = Deployment();
-        dto.PhysicalPath = @"d:\sites\proassistnet";
+        var elsewhere = await TestDb.PhysicalPathIdAsync(db, @"d:\sites\callcenter");
 
+        var dto = Deployment(physicalPathId: elsewhere);
         var updated = await service.UpdateInstallationAsync(created.Id, dto);
 
         Assert.NotNull(updated);
-        Assert.Equal(@"d:\sites\proassistnet", updated!.PhysicalPath);
+        Assert.Equal(@"d:\sites\callcenter", updated!.PhysicalPath);
     }
 
     // --- Validation ----------------------------------------------------------------------
@@ -176,6 +180,23 @@ public class InstallationServiceTests
             () => new InstallationService(db).CreateInstallationAsync(Deployment(machineId: 999)));
 
         Assert.Contains("Machine 999", error.Message);
+    }
+
+    /// <summary>
+    /// The rule that makes ApplicationInstallations the last table to be filled: a lookup Id that
+    /// is not in its table yet is refused, rather than creating the row implicitly.
+    /// </summary>
+    [Fact]
+    public async Task A_root_path_that_does_not_exist_is_rejected()
+    {
+        using var testDb = TestDb.CreateSeeded();
+
+        await using var db = testDb.NewContext();
+
+        var error = await Assert.ThrowsAsync<ArgumentException>(
+            () => new InstallationService(db).CreateInstallationAsync(Deployment(rootPathId: 999)));
+
+        Assert.Contains("RootPath 999", error.Message);
     }
 
     // --- Soft delete ---------------------------------------------------------------------
@@ -228,17 +249,21 @@ public class InstallationServiceTests
         {
             var service = new InstallationService(db);
 
+            var spansInto = await TestDb.RootPathIdAsync(db, "/spans-into");
+            var overBefore = await TestDb.RootPathIdAsync(db, "/over-before");
+            var stillThere = await TestDb.RootPathIdAsync(db, "/still-there");
+
             // Started long before the window, retired inside it.
             await service.CreateInstallationAsync(
-                Deployment(rootPath: "/spans-into", validFrom: "2025-01-01", validTo: "2026-03-15"));
+                Deployment(rootPathId: spansInto, validFrom: "2025-01-01", validTo: "2026-03-15"));
 
             // Entirely before the window.
             await service.CreateInstallationAsync(
-                Deployment(rootPath: "/over-before", validFrom: "2024-01-01", validTo: "2024-12-31"));
+                Deployment(rootPathId: overBefore, validFrom: "2024-01-01", validTo: "2024-12-31"));
 
             // Still installed, started before the window — open-ended.
             await service.CreateInstallationAsync(
-                Deployment(rootPath: "/still-there", validFrom: "2025-06-01"));
+                Deployment(rootPathId: stillThere, validFrom: "2025-06-01"));
         }
 
         await using (var db = testDb.NewContext())
@@ -272,7 +297,7 @@ public class InstallationServiceTests
         await using (var db = testDb.NewContext())
         {
             var result = await new InstallationService(db).GetInstallationsAsync(
-                new InstallationFilterDto { SortBy = "'; drop table Installations; --" });
+                new InstallationFilterDto { SortBy = "'; drop table ApplicationInstallations; --" });
 
             Assert.Equal(
                 new[] { "GAIIS1", "GAIIS2" },
@@ -289,17 +314,19 @@ public class InstallationServiceTests
         {
             var service = new InstallationService(db);
 
-            await service.CreateInstallationAsync(Deployment(rootPath: "/one"));
+            var one = await TestDb.RootPathIdAsync(db, "/one");
+            var two = await TestDb.RootPathIdAsync(db, "/two");
+            var elsewhere = await TestDb.PhysicalPathIdAsync(db, @"e:\services\dataexchange.worker");
 
-            var elsewhere = Deployment(rootPath: "/two");
-            elsewhere.PhysicalPath = @"e:\services\vipsprava.worker";
-            await service.CreateInstallationAsync(elsewhere);
+            await service.CreateInstallationAsync(Deployment(rootPathId: one));
+            await service.CreateInstallationAsync(
+                Deployment(rootPathId: two, physicalPathId: elsewhere));
         }
 
         await using (var db = testDb.NewContext())
         {
             var result = await new InstallationService(db).GetInstallationsAsync(
-                new InstallationFilterDto { SearchTerm = "vipsprava.worker" });
+                new InstallationFilterDto { SearchTerm = "dataexchange.worker" });
 
             Assert.Single(result.Items);
             Assert.Equal("/two", result.Items[0].RootPath);
@@ -319,7 +346,8 @@ public class InstallationServiceTests
 
             for (var i = 0; i < 5; i++)
             {
-                await service.CreateInstallationAsync(Deployment(rootPath: $"/app{i}"));
+                var path = await TestDb.RootPathIdAsync(db, $"/app{i}");
+                await service.CreateInstallationAsync(Deployment(rootPathId: path));
             }
         }
 

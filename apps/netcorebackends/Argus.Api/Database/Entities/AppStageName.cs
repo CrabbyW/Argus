@@ -1,16 +1,17 @@
 namespace Argus.Api.Database.Entities;
 
 /// <summary>
-/// Lookup: a physical or virtual server that hosts installations (e.g. GAIIS1).
+/// Lookup: deployment stage of an installation (STAGING, RC0, MAIN, PenTest, Mirror).
 /// </summary>
-public class Machine : ILookupEntity
+public class AppStageName : ILookupEntity
 {
     public int Id { get; set; }
 
-    /// <summary>Stored in the <c>MachineName</c> column.</summary>
+    /// <summary>Stored in the <c>StageName</c> column.</summary>
     public string Name { get; set; } = string.Empty;
 
-    public string? Description { get; set; }
+    /// <summary>Display order in dropdowns; lower comes first.</summary>
+    public int SortOrder { get; set; }
 
     /// <summary>Soft-delete flag: 0 = hidden, 1 = active.</summary>
     public bool IsEnabled { get; set; } = true;

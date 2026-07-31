@@ -9,16 +9,23 @@ public class ArgusDbContext : DbContext
     {
     }
 
-    // --- Lookups ---
+    // --- Lookups: filled first, one screen each. Every one implements ILookupEntity. ---
     public DbSet<Machine> Machines => Set<Machine>();
-    public DbSet<Application> Applications => Set<Application>();
-    public DbSet<AppStage> AppStages => Set<AppStage>();
+    public DbSet<AppName> AppNames => Set<AppName>();
+    public DbSet<AppStageName> AppStageNames => Set<AppStageName>();
     public DbSet<ProcessorArchitecture> ProcessorArchitectures => Set<ProcessorArchitecture>();
     public DbSet<DnsEndpoint> DnsEndpoints => Set<DnsEndpoint>();
-
-    // --- Core ---
-    public DbSet<Installation> Installations => Set<Installation>();
+    public DbSet<RootPath> RootPaths => Set<RootPath>();
+    public DbSet<PhysicalPath> PhysicalPaths => Set<PhysicalPath>();
     public DbSet<AppRepository> AppRepositories => Set<AppRepository>();
+    public DbSet<Tag> Tags => Set<Tag>();
+
+    // --- The result table: nothing but references into the lookups above, plus its own dates ---
+    public DbSet<ApplicationInstallation> ApplicationInstallations => Set<ApplicationInstallation>();
+
+    // --- Link tables (no soft delete of their own) ---
+    public DbSet<InstallationTag> InstallationTags => Set<InstallationTag>();
+    public DbSet<InstallationRepository> InstallationRepositories => Set<InstallationRepository>();
 
     // --- Auth ---
     public DbSet<ApplicationUser> ApplicationUsers => Set<ApplicationUser>();

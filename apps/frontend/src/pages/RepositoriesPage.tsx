@@ -1,5 +1,6 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
+  Badge,
   Button,
   Dialog,
   DialogActions,
@@ -45,6 +46,7 @@ const useStyles = makeStyles({
   mono: { fontFamily: tokens.fontFamilyMonospace, fontSize: tokens.fontSizeBase200 },
   actions: { display: 'flex', gap: '4px' },
   tableWrapper: { overflowX: 'auto' },
+  badgeList: { display: 'flex', flexWrap: 'wrap', gap: '4px' },
   destructive: {
     color: tokens.colorPaletteRedForeground1,
     ':hover': {
@@ -55,16 +57,25 @@ const useStyles = makeStyles({
 });
 
 const blankForm: AppRepositoryUpsert = {
-  applicationId: 0,
   repositoryUrl: '',
   repositoryType: 0,
   description: '',
+  installationIds: [],
 };
 
+interface InstallationOption {
+  id: number;
+  label: string;
+}
+
 /**
- * Repositories belong to an Application, not to one installation — the same source location
- * backs every deployment of that application. `roadplan` lists AppRepositories as an
- * installation attribute; this is where they are maintained.
+ * A repository is linked to installations many-to-many: one row per source location, one link
+ * per installation built from it. It is deliberately not owned by an application — a plain
+ * foreign key would store the same URL once per installation, which is exactly the duplication
+ * the normalized model exists to remove.
+ *
+ * The two filters are independent. "Installation" answers what one deployment is built from;
+ * "Application" answers what an application uses anywhere it runs.
  */
 export function RepositoriesPage() {
   const styles = useStyles();
@@ -72,21 +83,25 @@ export function RepositoriesPage() {
   const { lookups, error: lookupsError } = useLookups();
 
   const [items, setItems] = useState<AppRepository[]>([]);
-  const [applicationFilter, setApplicationFilter] = useState<number | null>(null);
+  const [installations, setInstallations] = useState<InstallationOption[]>([]);
+  const [appNameFilter, setAppNameFilter] = useState<number | null>(null);
+  const [installationFilter, setInstallationFilter] = useState<number | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const [editing, setEditing] = useState<{ id: number | null; form: AppRepositoryUpsert } | null>(null);
+  const [editing, setEditing] = useState<{ id: number | null; form: AppRepositoryUpsert } | null>(
+    null,
+  );
   const [isSaving, setIsSaving] = useState(false);
   const [pendingDelete, setPendingDelete] = useState<AppRepository | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
 
-  const load = useCallback(async (applicationId: number | null) => {
+  const load = useCallback(async (appNameId: number | null, installationId: number | null) => {
     setIsLoading(true);
     setError(null);
 
     try {
-      setItems(await api.getRepositories(applicationId));
+      setItems(await api.getRepositories({ appNameId, installationId }));
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load repositories.');
     } finally {
@@ -95,12 +110,42 @@ export function RepositoriesPage() {
   }, []);
 
   useEffect(() => {
-    void load(applicationFilter);
-  }, [applicationFilter, load]);
+    void load(appNameFilter, installationFilter);
+  }, [appNameFilter, installationFilter, load]);
 
-  function applicationName(id: number) {
-    return lookups.applications.find((app) => app.id === id)?.name ?? `#${id}`;
-  }
+  // Installations are not a lookup, but linking needs a readable label for each one.
+  // Decommissioned rows are included: a retired installation keeps the history of where its
+  // code came from, and hiding it here would make that link uneditable.
+  useEffect(() => {
+    let cancelled = false;
+
+    api
+      .getInstallations({ pageNumber: 1, pageSize: 500, includeDisabled: true })
+      .then((page) => {
+        if (cancelled) {
+          return;
+        }
+
+        setInstallations(
+          page.items.map((item) => ({
+            id: item.id,
+            label: `${item.appName} (${item.appStageName}) on ${item.machineName}`,
+          })),
+        );
+      })
+      .catch((err) =>
+        setError(err instanceof Error ? err.message : 'Failed to load installations.'),
+      );
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const installationLabels = useMemo(
+    () => new Map(installations.map((option) => [option.id, option.label])),
+    [installations],
+  );
 
   async function handleSave() {
     if (!editing) {
@@ -125,7 +170,7 @@ export function RepositoriesPage() {
       }
 
       setEditing(null);
-      await load(applicationFilter);
+      await load(appNameFilter, installationFilter);
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Failed to save the repository.';
       toast.error('Save failed', message);
@@ -146,7 +191,7 @@ export function RepositoriesPage() {
       await api.deleteRepository(pendingDelete.id);
       toast.success('Repository removed.');
       setPendingDelete(null);
-      await load(applicationFilter);
+      await load(appNameFilter, installationFilter);
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Failed to delete the repository.';
       toast.error('Delete failed', message);
@@ -156,10 +201,8 @@ export function RepositoriesPage() {
     }
   }
 
-  const isValid =
-    editing !== null &&
-    editing.form.applicationId > 0 &&
-    editing.form.repositoryUrl.trim().length > 0;
+  // An unattached repository is legitimate: it can be registered before its installation exists.
+  const isValid = editing !== null && editing.form.repositoryUrl.trim().length > 0;
 
   return (
     <div className={styles.root}>
@@ -175,7 +218,10 @@ export function RepositoriesPage() {
           onClick={() =>
             setEditing({
               id: null,
-              form: { ...blankForm, applicationId: applicationFilter ?? 0 },
+              form: {
+                ...blankForm,
+                installationIds: installationFilter ? [installationFilter] : [],
+              },
             })
           }
         >
@@ -185,7 +231,7 @@ export function RepositoriesPage() {
 
       {lookupsError && (
         <MessageBar intent="error">
-          <MessageBarBody>Applications could not be loaded: {lookupsError}</MessageBarBody>
+          <MessageBarBody>Filters could not be loaded: {lookupsError}</MessageBarBody>
         </MessageBar>
       )}
 
@@ -199,18 +245,34 @@ export function RepositoriesPage() {
         <Field label="Application" className={styles.filter}>
           <Dropdown
             placeholder="All applications"
-            selectedOptions={applicationFilter ? [String(applicationFilter)] : ['']}
-            value={
-              lookups.applications.find((app) => app.id === applicationFilter)?.name ?? ''
-            }
+            selectedOptions={appNameFilter ? [String(appNameFilter)] : ['']}
+            value={lookups.appNames.find((app) => app.id === appNameFilter)?.name ?? ''}
             onOptionSelect={(_, data) =>
-              setApplicationFilter(data.optionValue ? Number(data.optionValue) : null)
+              setAppNameFilter(data.optionValue ? Number(data.optionValue) : null)
             }
           >
             <Option value="">All applications</Option>
-            {lookups.applications.map((app) => (
+            {lookups.appNames.map((app) => (
               <Option key={app.id} value={String(app.id)}>
                 {app.name}
+              </Option>
+            ))}
+          </Dropdown>
+        </Field>
+
+        <Field label="Installation" className={styles.filter}>
+          <Dropdown
+            placeholder="All installations"
+            selectedOptions={installationFilter ? [String(installationFilter)] : ['']}
+            value={installationFilter ? (installationLabels.get(installationFilter) ?? '') : ''}
+            onOptionSelect={(_, data) =>
+              setInstallationFilter(data.optionValue ? Number(data.optionValue) : null)
+            }
+          >
+            <Option value="">All installations</Option>
+            {installations.map((option) => (
+              <Option key={option.id} value={String(option.id)}>
+                {option.label}
               </Option>
             ))}
           </Dropdown>
@@ -224,9 +286,9 @@ export function RepositoriesPage() {
           <Table size="small">
             <TableHeader>
               <TableRow>
-                <TableHeaderCell>Application</TableHeaderCell>
                 <TableHeaderCell>Type</TableHeaderCell>
                 <TableHeaderCell>URL</TableHeaderCell>
+                <TableHeaderCell>Installations</TableHeaderCell>
                 <TableHeaderCell>Description</TableHeaderCell>
                 <TableHeaderCell>Actions</TableHeaderCell>
               </TableRow>
@@ -236,16 +298,28 @@ export function RepositoriesPage() {
               {items.length === 0 && (
                 <TableRow>
                   <TableCell colSpan={5}>
-                    <span className={styles.muted}>No repositories yet.</span>
+                    <span className={styles.muted}>No repositories match the current filter.</span>
                   </TableCell>
                 </TableRow>
               )}
 
               {items.map((repo) => (
                 <TableRow key={repo.id}>
-                  <TableCell>{applicationName(repo.applicationId)}</TableCell>
                   <TableCell>{repositoryTypeNames[repo.repositoryType] ?? 'Unknown'}</TableCell>
                   <TableCell className={styles.mono}>{repo.repositoryUrl}</TableCell>
+                  <TableCell>
+                    {repo.installationIds.length === 0 ? (
+                      <span className={styles.muted}>unattached</span>
+                    ) : (
+                      <div className={styles.badgeList}>
+                        {repo.installationIds.map((id) => (
+                          <Badge key={id} appearance="tint" color="informative" size="small">
+                            {installationLabels.get(id) ?? `#${id}`}
+                          </Badge>
+                        ))}
+                      </div>
+                    )}
+                  </TableCell>
                   <TableCell>
                     {repo.description ?? <span className={styles.muted}>—</span>}
                   </TableCell>
@@ -260,10 +334,10 @@ export function RepositoriesPage() {
                             setEditing({
                               id: repo.id,
                               form: {
-                                applicationId: repo.applicationId,
                                 repositoryUrl: repo.repositoryUrl,
                                 repositoryType: repo.repositoryType,
                                 description: repo.description ?? '',
+                                installationIds: [...repo.installationIds],
                               },
                             })
                           }
@@ -295,31 +369,6 @@ export function RepositoriesPage() {
 
               <DialogContent>
                 <div className={styles.form}>
-                  <Field label="Application" required>
-                    <Dropdown
-                      placeholder="Select application"
-                      selectedOptions={
-                        editing.form.applicationId ? [String(editing.form.applicationId)] : []
-                      }
-                      value={
-                        lookups.applications.find((app) => app.id === editing.form.applicationId)
-                          ?.name ?? ''
-                      }
-                      onOptionSelect={(_, data) =>
-                        setEditing({
-                          ...editing,
-                          form: { ...editing.form, applicationId: Number(data.optionValue) || 0 },
-                        })
-                      }
-                    >
-                      {lookups.applications.map((app) => (
-                        <Option key={app.id} value={String(app.id)}>
-                          {app.name}
-                        </Option>
-                      ))}
-                    </Dropdown>
-                  </Field>
-
                   <Field label="Type">
                     <Dropdown
                       selectedOptions={[String(editing.form.repositoryType)]}
@@ -342,18 +391,55 @@ export function RepositoriesPage() {
                   <Field label="URL" required>
                     <Input
                       value={editing.form.repositoryUrl}
+                      maxLength={512}
                       onChange={(_, data) =>
-                        setEditing({ ...editing, form: { ...editing.form, repositoryUrl: data.value } })
+                        setEditing({
+                          ...editing,
+                          form: { ...editing.form, repositoryUrl: data.value },
+                        })
                       }
                       placeholder="git://server/project.git"
                     />
                   </Field>
 
+                  <Field
+                    label="Installations"
+                    hint="Leave empty to register the repository before its installation exists."
+                  >
+                    <Dropdown
+                      multiselect
+                      placeholder="Not linked to any installation"
+                      selectedOptions={editing.form.installationIds.map(String)}
+                      value={editing.form.installationIds
+                        .map((id) => installationLabels.get(id) ?? `#${id}`)
+                        .join(', ')}
+                      onOptionSelect={(_, data) =>
+                        setEditing({
+                          ...editing,
+                          form: {
+                            ...editing.form,
+                            installationIds: data.selectedOptions.map(Number),
+                          },
+                        })
+                      }
+                    >
+                      {installations.map((option) => (
+                        <Option key={option.id} value={String(option.id)}>
+                          {option.label}
+                        </Option>
+                      ))}
+                    </Dropdown>
+                  </Field>
+
                   <Field label="Description">
                     <Input
                       value={editing.form.description ?? ''}
+                      maxLength={512}
                       onChange={(_, data) =>
-                        setEditing({ ...editing, form: { ...editing.form, description: data.value } })
+                        setEditing({
+                          ...editing,
+                          form: { ...editing.form, description: data.value },
+                        })
                       }
                     />
                   </Field>
@@ -380,7 +466,7 @@ export function RepositoriesPage() {
       {pendingDelete && (
         <ConfirmDialog
           title="Remove repository"
-          message={`Remove ${pendingDelete.repositoryUrl} from ${applicationName(pendingDelete.applicationId)}?`}
+          message={`Remove ${pendingDelete.repositoryUrl}? Its links to ${pendingDelete.installationIds.length} installation(s) go with it; the installations themselves are untouched.`}
           confirmLabel="Remove"
           isBusy={isDeleting}
           onConfirm={() => void confirmDelete()}

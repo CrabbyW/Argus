@@ -21,19 +21,22 @@ public class InstallationService : IInstallationService
 
     public async Task<DataViewOutput<InstallationListItemDto>> GetInstallationsAsync(InstallationFilterDto filter)
     {
-        var query = db.Installations
+        var query = db.ApplicationInstallations
             .AsNoTracking()
             .Include(x => x.Machine)
-            .Include(x => x.Application)
-            .Include(x => x.AppStage)
+            .Include(x => x.AppName)
+            .Include(x => x.AppStageName)
             .Include(x => x.ProcessorArchitecture)
             .Include(x => x.DnsEndpoint)
+            .Include(x => x.RootPath)
+            .Include(x => x.PhysicalPath)
+            .Include(x => x.InstallationTags).ThenInclude(link => link.Tag)
             .AsQueryable();
 
         if (filter.IncludeDisabled)
         {
             // Historical questions must be able to see decommissioned rows, which are
-            // soft-deleted. IgnoreQueryFilters drops the IsEnabled filter on Installations.
+            // soft-deleted. IgnoreQueryFilters drops the IsEnabled filter.
             query = query.IgnoreQueryFilters();
         }
 
@@ -42,14 +45,14 @@ public class InstallationService : IInstallationService
             query = query.Where(x => x.MachineId == filter.MachineId.Value);
         }
 
-        if (filter.ApplicationId.HasValue)
+        if (filter.AppNameId.HasValue)
         {
-            query = query.Where(x => x.ApplicationId == filter.ApplicationId.Value);
+            query = query.Where(x => x.AppNameId == filter.AppNameId.Value);
         }
 
-        if (filter.AppStageId.HasValue)
+        if (filter.AppStageNameId.HasValue)
         {
-            query = query.Where(x => x.AppStageId == filter.AppStageId.Value);
+            query = query.Where(x => x.AppStageNameId == filter.AppStageNameId.Value);
         }
 
         if (filter.ProcessorArchitectureId.HasValue)
@@ -60,6 +63,29 @@ public class InstallationService : IInstallationService
         if (filter.DnsEndpointId.HasValue)
         {
             query = query.Where(x => x.DnsEndpointId == filter.DnsEndpointId.Value);
+        }
+
+        if (filter.RootPathId.HasValue)
+        {
+            query = query.Where(x => x.RootPathId == filter.RootPathId.Value);
+        }
+
+        if (filter.PhysicalPathId.HasValue)
+        {
+            query = query.Where(x => x.PhysicalPathId == filter.PhysicalPathId.Value);
+        }
+
+        // Any(), never a join: CountAsync below runs on this same query, and a join over the
+        // link table would return one row per matching tag and inflate TotalCount.
+        if (filter.TagId.HasValue)
+        {
+            query = query.Where(x => x.InstallationTags.Any(link => link.TagId == filter.TagId.Value));
+        }
+
+        if (filter.RepositoryId.HasValue)
+        {
+            query = query.Where(x =>
+                x.InstallationRepositories.Any(link => link.AppRepositoryId == filter.RepositoryId.Value));
         }
 
         if (filter.IsActive.HasValue)
@@ -86,12 +112,12 @@ public class InstallationService : IInstallationService
         {
             var term = filter.SearchTerm.Trim();
             query = query.Where(x =>
-                EF.Functions.Like(x.Machine.MachineName, $"%{term}%") ||
-                EF.Functions.Like(x.Application.AppName, $"%{term}%") ||
-                EF.Functions.Like(x.RootPath, $"%{term}%") ||
-                (x.PhysicalPath != null && EF.Functions.Like(x.PhysicalPath, $"%{term}%")) ||
-                (x.Tags != null && EF.Functions.Like(x.Tags, $"%{term}%")) ||
-                (x.DnsEndpoint != null && EF.Functions.Like(x.DnsEndpoint.DnsName, $"%{term}%")));
+                EF.Functions.Like(x.Machine.Name, $"%{term}%") ||
+                EF.Functions.Like(x.AppName.Name, $"%{term}%") ||
+                EF.Functions.Like(x.RootPath.Name, $"%{term}%") ||
+                (x.PhysicalPath != null && EF.Functions.Like(x.PhysicalPath.Name, $"%{term}%")) ||
+                x.InstallationTags.Any(link => EF.Functions.Like(link.Tag.Name, $"%{term}%")) ||
+                (x.DnsEndpoint != null && EF.Functions.Like(x.DnsEndpoint.Name, $"%{term}%")));
         }
 
         var totalCount = await query.CountAsync();
@@ -115,24 +141,31 @@ public class InstallationService : IInstallationService
     /// <summary>
     /// Whitelisted sort columns only — the client sends a column name, never raw SQL.
     /// </summary>
-    private static IQueryable<Installation> ApplySort(IQueryable<Installation> query, InstallationFilterDto filter)
+    private static IQueryable<ApplicationInstallation> ApplySort(
+        IQueryable<ApplicationInstallation> query, InstallationFilterDto filter)
     {
         var desc = filter.IsDescending;
 
         return (filter.SortBy?.ToLowerInvariant()) switch
         {
             "appname" => desc
-                ? query.OrderByDescending(x => x.Application.AppName)
-                : query.OrderBy(x => x.Application.AppName),
+                ? query.OrderByDescending(x => x.AppName.Name)
+                : query.OrderBy(x => x.AppName.Name),
             "appstagename" => desc
-                ? query.OrderByDescending(x => x.AppStage.SortOrder)
-                : query.OrderBy(x => x.AppStage.SortOrder),
+                ? query.OrderByDescending(x => x.AppStageName.SortOrder)
+                : query.OrderBy(x => x.AppStageName.SortOrder),
             "rootpath" => desc
-                ? query.OrderByDescending(x => x.RootPath)
-                : query.OrderBy(x => x.RootPath),
+                ? query.OrderByDescending(x => x.RootPath.Name)
+                : query.OrderBy(x => x.RootPath.Name),
+            "physicalpath" => desc
+                ? query.OrderByDescending(x => x.PhysicalPath!.Name)
+                : query.OrderBy(x => x.PhysicalPath!.Name),
             "dnsname" => desc
-                ? query.OrderByDescending(x => x.DnsEndpoint!.DnsName)
-                : query.OrderBy(x => x.DnsEndpoint!.DnsName),
+                ? query.OrderByDescending(x => x.DnsEndpoint!.Name)
+                : query.OrderBy(x => x.DnsEndpoint!.Name),
+            "processorarchitecture" => desc
+                ? query.OrderByDescending(x => x.ProcessorArchitecture.Name)
+                : query.OrderBy(x => x.ProcessorArchitecture.Name),
             "isactive" => desc
                 ? query.OrderByDescending(x => x.IsActive)
                 : query.OrderBy(x => x.IsActive),
@@ -140,8 +173,8 @@ public class InstallationService : IInstallationService
                 ? query.OrderByDescending(x => x.ValidFromDate)
                 : query.OrderBy(x => x.ValidFromDate),
             _ => desc
-                ? query.OrderByDescending(x => x.Machine.MachineName).ThenByDescending(x => x.Id)
-                : query.OrderBy(x => x.Machine.MachineName).ThenBy(x => x.Id)
+                ? query.OrderByDescending(x => x.Machine.Name).ThenByDescending(x => x.Id)
+                : query.OrderBy(x => x.Machine.Name).ThenBy(x => x.Id)
         };
     }
 
@@ -158,7 +191,7 @@ public class InstallationService : IInstallationService
         await ValidateReferencesAsync(dto);
         await ValidateUniqueDeploymentAsync(dto, excludeId: null);
 
-        var entity = new Installation
+        var entity = new ApplicationInstallation
         {
             CreatedUtc = DateTime.UtcNow
         };
@@ -170,10 +203,11 @@ public class InstallationService : IInstallationService
             entity.ValidFromDate = DateOnly.FromDateTime(DateTime.UtcNow);
         }
 
-        db.Installations.Add(entity);
+        db.ApplicationInstallations.Add(entity);
+        SyncLinks(entity, dto);
         await db.SaveChangesAsync();
 
-        logger.Info($"Created installation {entity.Id} (machine={entity.MachineId}, app={entity.ApplicationId}).");
+        logger.Info($"Created installation {entity.Id} (machine={entity.MachineId}, app={entity.AppNameId}).");
 
         // Reload with navigations so the response carries resolved names.
         return (await GetInstallationByIdAsync(entity.Id))!;
@@ -181,7 +215,12 @@ public class InstallationService : IInstallationService
 
     public async Task<InstallationDetailDto?> UpdateInstallationAsync(int id, InstallationUpsertDto dto)
     {
-        var entity = await db.Installations.FirstOrDefaultAsync(x => x.Id == id);
+        // The link collections have to be loaded, otherwise the diff below cannot see what is
+        // already there and would try to insert links that exist.
+        var entity = await db.ApplicationInstallations
+            .Include(x => x.InstallationTags)
+            .Include(x => x.InstallationRepositories)
+            .FirstOrDefaultAsync(x => x.Id == id);
 
         if (entity is null)
         {
@@ -192,6 +231,7 @@ public class InstallationService : IInstallationService
         await ValidateUniqueDeploymentAsync(dto, excludeId: id);
 
         InstallationMapper.ApplyUpsert(entity, dto);
+        SyncLinks(entity, dto);
         entity.ModifiedUtc = DateTime.UtcNow;
 
         await db.SaveChangesAsync();
@@ -203,7 +243,7 @@ public class InstallationService : IInstallationService
 
     public async Task<bool> DeleteInstallationAsync(int id)
     {
-        var entity = await db.Installations.FirstOrDefaultAsync(x => x.Id == id);
+        var entity = await db.ApplicationInstallations.FirstOrDefaultAsync(x => x.Id == id);
 
         if (entity is null)
         {
@@ -220,9 +260,40 @@ public class InstallationService : IInstallationService
         return true;
     }
 
-    private IQueryable<Installation> LoadDetailQuery(bool tracking)
+    /// <summary>
+    /// Brings the tag and repository links in line with the payload: removes the links that are
+    /// no longer wanted, adds the ones that are missing, and leaves the rest untouched.
+    ///
+    /// Lives here rather than in <see cref="InstallationMapper"/> because deleting link rows
+    /// needs the DbContext. <c>Distinct()</c> is load-bearing — a payload listing the same tag
+    /// twice would otherwise violate the composite primary key.
+    /// </summary>
+    private void SyncLinks(ApplicationInstallation entity, InstallationUpsertDto dto)
     {
-        var query = db.Installations.AsQueryable();
+        var wantedTags = dto.TagIds.Distinct().ToHashSet();
+
+        db.InstallationTags.RemoveRange(
+            entity.InstallationTags.Where(link => !wantedTags.Contains(link.TagId)));
+
+        db.InstallationTags.AddRange(
+            wantedTags
+                .Where(tagId => entity.InstallationTags.All(link => link.TagId != tagId))
+                .Select(tagId => new InstallationTag { Installation = entity, TagId = tagId }));
+
+        var wantedRepositories = dto.RepositoryIds.Distinct().ToHashSet();
+
+        db.InstallationRepositories.RemoveRange(
+            entity.InstallationRepositories.Where(link => !wantedRepositories.Contains(link.AppRepositoryId)));
+
+        db.InstallationRepositories.AddRange(
+            wantedRepositories
+                .Where(repoId => entity.InstallationRepositories.All(link => link.AppRepositoryId != repoId))
+                .Select(repoId => new InstallationRepository { Installation = entity, AppRepositoryId = repoId }));
+    }
+
+    private IQueryable<ApplicationInstallation> LoadDetailQuery(bool tracking)
+    {
+        var query = db.ApplicationInstallations.AsQueryable();
 
         if (!tracking)
         {
@@ -231,15 +302,20 @@ public class InstallationService : IInstallationService
 
         return query
             .Include(x => x.Machine)
-            .Include(x => x.Application).ThenInclude(a => a.AppRepositories)
-            .Include(x => x.AppStage)
+            .Include(x => x.AppName)
+            .Include(x => x.AppStageName)
             .Include(x => x.ProcessorArchitecture)
-            .Include(x => x.DnsEndpoint);
+            .Include(x => x.DnsEndpoint)
+            .Include(x => x.RootPath)
+            .Include(x => x.PhysicalPath)
+            .Include(x => x.InstallationTags).ThenInclude(link => link.Tag)
+            .Include(x => x.InstallationRepositories).ThenInclude(link => link.AppRepository);
     }
 
     /// <summary>
-    /// Every lookup Id must point at an existing, enabled row. Throws
-    /// <see cref="ArgumentException"/> so the controller can turn it into a 400.
+    /// Every lookup Id must point at an existing, enabled row — this is where "the lookups are
+    /// filled first" is enforced. Throws <see cref="ArgumentException"/> so the controller can
+    /// turn it into a 400.
     /// </summary>
     private async Task ValidateReferencesAsync(InstallationUpsertDto dto)
     {
@@ -248,14 +324,14 @@ public class InstallationService : IInstallationService
             throw new ArgumentException($"Machine {dto.MachineId} does not exist.");
         }
 
-        if (!await db.Applications.AnyAsync(x => x.Id == dto.ApplicationId))
+        if (!await db.AppNames.AnyAsync(x => x.Id == dto.AppNameId))
         {
-            throw new ArgumentException($"Application {dto.ApplicationId} does not exist.");
+            throw new ArgumentException($"AppName {dto.AppNameId} does not exist.");
         }
 
-        if (!await db.AppStages.AnyAsync(x => x.Id == dto.AppStageId))
+        if (!await db.AppStageNames.AnyAsync(x => x.Id == dto.AppStageNameId))
         {
-            throw new ArgumentException($"AppStage {dto.AppStageId} does not exist.");
+            throw new ArgumentException($"AppStageName {dto.AppStageNameId} does not exist.");
         }
 
         if (!await db.ProcessorArchitectures.AnyAsync(x => x.Id == dto.ProcessorArchitectureId))
@@ -269,6 +345,33 @@ public class InstallationService : IInstallationService
             throw new ArgumentException($"DnsEndpoint {dto.DnsEndpointId.Value} does not exist.");
         }
 
+        if (!await db.RootPaths.AnyAsync(x => x.Id == dto.RootPathId))
+        {
+            throw new ArgumentException($"RootPath {dto.RootPathId} does not exist.");
+        }
+
+        if (dto.PhysicalPathId.HasValue &&
+            !await db.PhysicalPaths.AnyAsync(x => x.Id == dto.PhysicalPathId.Value))
+        {
+            throw new ArgumentException($"PhysicalPath {dto.PhysicalPathId.Value} does not exist.");
+        }
+
+        foreach (var tagId in dto.TagIds.Distinct())
+        {
+            if (!await db.Tags.AnyAsync(x => x.Id == tagId))
+            {
+                throw new ArgumentException($"Tag {tagId} does not exist.");
+            }
+        }
+
+        foreach (var repositoryId in dto.RepositoryIds.Distinct())
+        {
+            if (!await db.AppRepositories.AnyAsync(x => x.Id == repositoryId))
+            {
+                throw new ArgumentException($"Repository {repositoryId} does not exist.");
+            }
+        }
+
         if (dto.ValidToDate.HasValue && dto.ValidToDate.Value < dto.ValidFromDate)
         {
             throw new ArgumentException("ValidToDate cannot be earlier than ValidFromDate.");
@@ -279,16 +382,16 @@ public class InstallationService : IInstallationService
     /// Mirrors the unique index so the user gets a readable message instead of a
     /// raw SQL constraint violation. Both sides deliberately ignore decommissioned rows:
     /// the index is filtered on <c>IsEnabled = 1</c>, and the query filter on
-    /// <see cref="ArgusDbContext.Installations"/> hides the same rows here. Installing
+    /// <see cref="ArgusDbContext.ApplicationInstallations"/> hides the same rows here. Installing
     /// something again after it was retired is a new period, not a duplicate.
     /// </summary>
     private async Task ValidateUniqueDeploymentAsync(InstallationUpsertDto dto, int? excludeId)
     {
-        var clash = await db.Installations.AnyAsync(x =>
+        var clash = await db.ApplicationInstallations.AnyAsync(x =>
             x.MachineId == dto.MachineId &&
-            x.ApplicationId == dto.ApplicationId &&
-            x.AppStageId == dto.AppStageId &&
-            x.RootPath == dto.RootPath &&
+            x.AppNameId == dto.AppNameId &&
+            x.AppStageNameId == dto.AppStageNameId &&
+            x.RootPathId == dto.RootPathId &&
             (excludeId == null || x.Id != excludeId.Value));
 
         if (clash)

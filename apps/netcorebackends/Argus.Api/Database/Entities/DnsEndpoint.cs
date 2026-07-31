@@ -5,11 +5,12 @@ namespace Argus.Api.Database.Entities;
 /// (e.g. https://paha.ga.local). Deliberately its own table because a single DNS name may be
 /// a load balancer fronting several machines — it is shared, not owned by one installation.
 /// </summary>
-public class DnsEndpoint
+public class DnsEndpoint : ILookupEntity
 {
     public int Id { get; set; }
 
-    public string DnsName { get; set; } = string.Empty;
+    /// <summary>Stored in the <c>DnsName</c> column.</summary>
+    public string Name { get; set; } = string.Empty;
 
     /// <summary>True when this name points at a load balancer rather than a single machine.</summary>
     public bool IsLoadBalancer { get; set; }
@@ -19,5 +20,6 @@ public class DnsEndpoint
     /// <summary>Soft-delete flag: 0 = hidden, 1 = active.</summary>
     public bool IsEnabled { get; set; } = true;
 
-    public ICollection<Installation> Installations { get; set; } = new List<Installation>();
+    public ICollection<ApplicationInstallation> Installations { get; set; } =
+        new List<ApplicationInstallation>();
 }

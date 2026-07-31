@@ -1,16 +1,16 @@
 namespace Argus.Api.Database.Entities;
 
 /// <summary>
-/// Lookup: a physical or virtual server that hosts installations (e.g. GAIIS1).
+/// Lookup: the path within a web site an installation is served from ("/", "/proassistnet.rc0").
+/// The same path is used by many installations, so it is stored once and referenced by Id —
+/// correcting a typo is then one row, not a search across the whole inventory.
 /// </summary>
-public class Machine : ILookupEntity
+public class RootPath : ILookupEntity
 {
     public int Id { get; set; }
 
-    /// <summary>Stored in the <c>MachineName</c> column.</summary>
+    /// <summary>Stored in the <c>Path</c> column.</summary>
     public string Name { get; set; } = string.Empty;
-
-    public string? Description { get; set; }
 
     /// <summary>Soft-delete flag: 0 = hidden, 1 = active.</summary>
     public bool IsEnabled { get; set; } = true;

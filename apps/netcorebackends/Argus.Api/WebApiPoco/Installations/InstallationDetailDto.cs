@@ -1,3 +1,5 @@
+using Argus.Api.WebApiPoco.Common;
+
 namespace Argus.Api.WebApiPoco.Installations;
 
 /// <summary>
@@ -11,10 +13,10 @@ public class InstallationDetailDto
     public int MachineId { get; set; }
     public string MachineName { get; set; } = string.Empty;
 
-    public int ApplicationId { get; set; }
+    public int AppNameId { get; set; }
     public string AppName { get; set; } = string.Empty;
 
-    public int AppStageId { get; set; }
+    public int AppStageNameId { get; set; }
     public string AppStageName { get; set; } = string.Empty;
 
     public int ProcessorArchitectureId { get; set; }
@@ -23,11 +25,14 @@ public class InstallationDetailDto
     public int? DnsEndpointId { get; set; }
     public string? DnsName { get; set; }
 
+    public int RootPathId { get; set; }
     public string RootPath { get; set; } = string.Empty;
 
+    public int? PhysicalPathId { get; set; }
     public string? PhysicalPath { get; set; }
 
-    public string? Tags { get; set; }
+    /// <summary>Linked tags, Id + name — the edit form submits the Ids.</summary>
+    public IReadOnlyList<LookupItemDto> Tags { get; set; } = Array.Empty<LookupItemDto>();
 
     public bool IsActive { get; set; }
 
@@ -39,6 +44,6 @@ public class InstallationDetailDto
 
     public DateTime? ModifiedUtc { get; set; }
 
-    /// <summary>Repositories of the installed application (read-only here).</summary>
+    /// <summary>Repositories this installation is built from.</summary>
     public IReadOnlyList<AppRepositoryDto> AppRepositories { get; set; } = Array.Empty<AppRepositoryDto>();
 }

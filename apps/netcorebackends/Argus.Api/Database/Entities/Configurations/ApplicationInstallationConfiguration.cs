@@ -1,19 +1,15 @@
-using Argus.Api.Database.Entities;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
 namespace Argus.Api.Database.Entities.Configurations;
 
-public class InstallationConfiguration : IEntityTypeConfiguration<Installation>
+public class ApplicationInstallationConfiguration : IEntityTypeConfiguration<ApplicationInstallation>
 {
-    public void Configure(EntityTypeBuilder<Installation> builder)
+    public void Configure(EntityTypeBuilder<ApplicationInstallation> builder)
     {
-        builder.ToTable("Installations");
+        builder.ToTable("ApplicationInstallations");
         builder.HasKey(x => x.Id);
 
-        builder.Property(x => x.RootPath).IsRequired().HasMaxLength(256);
-        builder.Property(x => x.PhysicalPath).HasMaxLength(512);
-        builder.Property(x => x.Tags).HasMaxLength(512);
         builder.Property(x => x.IsActive).IsRequired().HasDefaultValue(true);
         builder.Property(x => x.IsEnabled).IsRequired().HasDefaultValue(true);
         builder.Property(x => x.ValidFromDate).IsRequired().HasColumnType("date");
@@ -27,14 +23,14 @@ public class InstallationConfiguration : IEntityTypeConfiguration<Installation>
                .HasForeignKey(x => x.MachineId)
                .OnDelete(DeleteBehavior.Restrict);
 
-        builder.HasOne(x => x.Application)
+        builder.HasOne(x => x.AppName)
                .WithMany(a => a.Installations)
-               .HasForeignKey(x => x.ApplicationId)
+               .HasForeignKey(x => x.AppNameId)
                .OnDelete(DeleteBehavior.Restrict);
 
-        builder.HasOne(x => x.AppStage)
+        builder.HasOne(x => x.AppStageName)
                .WithMany(s => s.Installations)
-               .HasForeignKey(x => x.AppStageId)
+               .HasForeignKey(x => x.AppStageNameId)
                .OnDelete(DeleteBehavior.Restrict);
 
         builder.HasOne(x => x.ProcessorArchitecture)
@@ -49,20 +45,34 @@ public class InstallationConfiguration : IEntityTypeConfiguration<Installation>
                .IsRequired(false)
                .OnDelete(DeleteBehavior.SetNull);
 
+        builder.HasOne(x => x.RootPath)
+               .WithMany(p => p.Installations)
+               .HasForeignKey(x => x.RootPathId)
+               .OnDelete(DeleteBehavior.Restrict);
+
+        // Optional: an installation need not record where it sits on disk.
+        builder.HasOne(x => x.PhysicalPath)
+               .WithMany(p => p.Installations)
+               .HasForeignKey(x => x.PhysicalPathId)
+               .IsRequired(false)
+               .OnDelete(DeleteBehavior.SetNull);
+
         // The same app+stage cannot sit twice at the same path on the same machine — but only
         // among rows that are still there. Decommissioning is a soft delete, so without the
         // filter the retired row keeps its slot forever and installing the same thing again
         // (an ordinary event in an inventory, and what ValidFromDate/ValidToDate exist to
         // record) fails on a constraint the user cannot see or clear.
-        builder.HasIndex(x => new { x.MachineId, x.ApplicationId, x.AppStageId, x.RootPath })
+        builder.HasIndex(x => new { x.MachineId, x.AppNameId, x.AppStageNameId, x.RootPathId })
                .IsUnique()
                .HasFilter("[IsEnabled] = 1")
-               .HasDatabaseName("UX_Installations_Deployment");
+               .HasDatabaseName("UX_ApplicationInstallations_Deployment");
 
         // Supports the common "what runs on this machine / where is this app" queries.
         builder.HasIndex(x => x.MachineId);
-        builder.HasIndex(x => x.ApplicationId);
+        builder.HasIndex(x => x.AppNameId);
         builder.HasIndex(x => x.DnsEndpointId);
+        builder.HasIndex(x => x.RootPathId);
+        builder.HasIndex(x => x.PhysicalPathId);
 
         builder.HasQueryFilter(x => x.IsEnabled);
     }

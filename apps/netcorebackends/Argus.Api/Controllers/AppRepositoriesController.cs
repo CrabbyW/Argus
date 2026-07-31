@@ -9,8 +9,8 @@ using Microsoft.AspNetCore.Mvc;
 namespace Argus.Api.Controllers;
 
 /// <summary>
-/// Source-control locations for applications. Separate from Installations because a repository
-/// belongs to the application, not to any one deployment of it.
+/// Source-control locations. A repository is linked to the installations built from it
+/// (many-to-many), so the same url is stored once however many deployments share it.
 /// </summary>
 [ApiController]
 [Route("api/[controller]")]
@@ -29,9 +29,11 @@ public class AppRepositoriesController : ControllerBase
     [HttpGet]
     [EndpointName("AppRepositories_GetRepositories")]
     [ProducesResponseType(typeof(ApiResponse<IReadOnlyList<AppRepositoryDto>>), StatusCodes.Status200OK)]
-    public async Task<IActionResult> GetRepositories([FromQuery] int? applicationId)
+    public async Task<IActionResult> GetRepositories(
+        [FromQuery] int? installationId,
+        [FromQuery] int? appNameId)
     {
-        var items = await repositoryService.GetAllAsync(applicationId);
+        var items = await repositoryService.GetAllAsync(installationId, appNameId);
 
         return Ok(new ApiResponse<IReadOnlyList<AppRepositoryDto>> { Success = true, Data = items });
     }

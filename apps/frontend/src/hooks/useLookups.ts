@@ -2,25 +2,41 @@ import { useCallback, useEffect, useState } from 'react';
 import { api } from '../api/client';
 import type { LookupItem } from '../api/types';
 
+/**
+ * Every Id-backed dropdown in the app. Nine entries: the eight editable lookups plus
+ * repositories, which the installation form offers as a multiselect but writes through its
+ * own endpoint.
+ */
 export interface Lookups {
   machines: LookupItem[];
-  applications: LookupItem[];
-  appStages: LookupItem[];
+  appNames: LookupItem[];
+  appStageNames: LookupItem[];
   processorArchitectures: LookupItem[];
   dnsEndpoints: LookupItem[];
+  rootPaths: LookupItem[];
+  physicalPaths: LookupItem[];
+  tags: LookupItem[];
+  repositories: LookupItem[];
 }
 
 const empty: Lookups = {
   machines: [],
-  applications: [],
-  appStages: [],
+  appNames: [],
+  appStageNames: [],
   processorArchitectures: [],
   dnsEndpoints: [],
+  rootPaths: [],
+  physicalPaths: [],
+  tags: [],
+  repositories: [],
 };
 
 /**
- * Loads all five lookup tables at once. Every dropdown in the app is Id-backed,
- * so the whole UI needs these before it can render a form.
+ * Loads all nine lookup tables at once. The whole UI is Id-backed, so no form can render
+ * before these arrive.
+ *
+ * The error is surfaced deliberately: silently empty dropdowns read as "there are no machines
+ * yet" rather than "the request failed", which was a real bug fixed on 2026-07-29.
  */
 export function useLookups() {
   const [lookups, setLookups] = useState<Lookups>(empty);
@@ -32,16 +48,39 @@ export function useLookups() {
     setError(null);
 
     try {
-      const [machines, applications, appStages, processorArchitectures, dnsEndpoints] =
-        await Promise.all([
-          api.getLookup('machines'),
-          api.getLookup('applications'),
-          api.getLookup('appstages'),
-          api.getLookup('processorarchitectures'),
-          api.getLookup('dnsendpoints'),
-        ]);
+      const [
+        machines,
+        appNames,
+        appStageNames,
+        processorArchitectures,
+        dnsEndpoints,
+        rootPaths,
+        physicalPaths,
+        tags,
+        repositories,
+      ] = await Promise.all([
+        api.getLookup('machines'),
+        api.getLookup('appnames'),
+        api.getLookup('appstagenames'),
+        api.getLookup('processorarchitectures'),
+        api.getLookup('dnsendpoints'),
+        api.getLookup('rootpaths'),
+        api.getLookup('physicalpaths'),
+        api.getLookup('tags'),
+        api.getLookup('apprepositories'),
+      ]);
 
-      setLookups({ machines, applications, appStages, processorArchitectures, dnsEndpoints });
+      setLookups({
+        machines,
+        appNames,
+        appStageNames,
+        processorArchitectures,
+        dnsEndpoints,
+        rootPaths,
+        physicalPaths,
+        tags,
+        repositories,
+      });
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load lookups.');
     } finally {

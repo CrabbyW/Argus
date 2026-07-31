@@ -10,11 +10,14 @@ namespace Argus.Api.WebApiPoco.Installations;
 public class AppRepositoryUpsertDto
 {
     [Required]
-    public int ApplicationId { get; set; }
-
-    [Required]
-    [StringLength(1024, MinimumLength = 1)]
+    [StringLength(512, MinimumLength = 1)]
     public string RepositoryUrl { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Installations built from this repository. An empty list leaves it registered but
+    /// unattached, which is how a repository is added before its installation exists.
+    /// </summary>
+    public List<int> InstallationIds { get; set; } = new();
 
     public RepositoryType RepositoryType { get; set; } = RepositoryType.Unknown;
 

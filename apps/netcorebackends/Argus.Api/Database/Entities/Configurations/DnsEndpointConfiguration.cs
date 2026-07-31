@@ -1,4 +1,3 @@
-using Argus.Api.Database.Entities;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
@@ -11,12 +10,15 @@ public class DnsEndpointConfiguration : IEntityTypeConfiguration<DnsEndpoint>
         builder.ToTable("DnsEndpoints");
         builder.HasKey(x => x.Id);
 
-        builder.Property(x => x.DnsName).IsRequired().HasMaxLength(256);
+        builder.Property(x => x.Name).HasColumnName("DnsName").IsRequired().HasMaxLength(256);
         builder.Property(x => x.IsLoadBalancer).IsRequired().HasDefaultValue(false);
         builder.Property(x => x.Description).HasMaxLength(512);
         builder.Property(x => x.IsEnabled).IsRequired().HasDefaultValue(true);
 
-        builder.HasIndex(x => x.DnsName).IsUnique();
+        builder.HasIndex(x => x.Name)
+               .IsUnique()
+               .HasFilter("[IsEnabled] = 1")
+               .HasDatabaseName("UX_DnsEndpoints_DnsName");
 
         builder.HasQueryFilter(x => x.IsEnabled);
     }

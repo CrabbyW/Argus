@@ -8,8 +8,13 @@ using Microsoft.AspNetCore.Mvc;
 namespace Argus.Api.Controllers;
 
 /// <summary>
-/// The five lookup tables share one shape, so they share one controller.
-/// <c>kind</c> is one of: machines, applications, appstages, processorarchitectures, dnsendpoints.
+/// The lookup tables share one shape, so they share one controller. These are the tables that are
+/// filled before any installation can be recorded.
+///
+/// <c>kind</c> is one of: machines, appnames, appstagenames, processorarchitectures, dnsendpoints,
+/// rootpaths, physicalpaths, tags, apprepositories. The last is readable only — repositories are
+/// written through <c>/api/AppRepositories</c>, because their type and installation links have
+/// nowhere to live in the shared lookup payload.
 /// </summary>
 [ApiController]
 [Route("api/[controller]")]
@@ -88,6 +93,10 @@ public class LookupsController : ControllerBase
             logger.Warn($"Validation failed creating {kind} lookup: {ex.Message}");
             return BadRequest(ValidationError(ex));
         }
+        catch (NotSupportedException ex)
+        {
+            return ReadOnlyKind(kind, ex);
+        }
     }
 
     [HttpPut("{kind}/{id:int}")]
@@ -117,6 +126,10 @@ public class LookupsController : ControllerBase
         {
             logger.Warn($"Validation failed updating {kind} lookup {id}: {ex.Message}");
             return BadRequest(ValidationError(ex));
+        }
+        catch (NotSupportedException ex)
+        {
+            return ReadOnlyKind(kind, ex);
         }
     }
 
@@ -148,6 +161,27 @@ public class LookupsController : ControllerBase
             logger.Warn($"Cannot delete {kind} lookup {id}: {ex.Message}");
             return BadRequest(ValidationError(ex));
         }
+        catch (NotSupportedException ex)
+        {
+            return ReadOnlyKind(kind, ex);
+        }
+    }
+
+    /// <summary>
+    /// A kind that can be read here but not written. 405 rather than 400: the request is
+    /// well-formed, the method is simply not available on this resource — and the message says
+    /// where it is available, so the caller is not left guessing.
+    /// </summary>
+    private ObjectResult ReadOnlyKind(string kind, NotSupportedException ex)
+    {
+        logger.Warn($"Rejected write to read-only lookup '{kind}': {ex.Message}");
+
+        return StatusCode(StatusCodes.Status405MethodNotAllowed, new ErrorResponse
+        {
+            Success = false,
+            ErrorCode = "LOOKUP_READ_ONLY",
+            Message = $"{kind} can only be read here. Use /api/AppRepositories to change it."
+        });
     }
 
     private static bool TryParseKind(string kind, out LookupKind parsed, out ErrorResponse error)

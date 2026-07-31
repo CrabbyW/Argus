@@ -10,6 +10,9 @@
     <!-- SQLite in-memory, not the InMemory provider: it is relational, so the unique index and
          its IsEnabled filter are actually enforced and EF.Functions.Like actually translates. -->
     <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" Version="10.0.10" />
+    <!-- Pinned ahead of what EF Core Sqlite resolves: its 2.1.11 native bundle carries
+         GHSA-2m69-gcr7-jv3q (NU1903, high). 2.1.12 is the patched build. -->
+    <PackageReference Include="SQLitePCLRaw.bundle_e_sqlite3" Version="2.1.12" />
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.14.1" />
     <PackageReference Include="xunit" Version="2.9.3" />
     <PackageReference Include="xunit.runner.visualstudio" Version="3.1.4" />

@@ -25,7 +25,8 @@ import {
 } from '@fluentui/react-components';
 import { AddRegular, DeleteRegular, DismissRegular, EditRegular, SaveRegular } from '@fluentui/react-icons';
 import { api } from '../api/client';
-import type { LookupItem, LookupKind } from '../api/types';
+import type { EditableLookupKind, LookupItem, LookupKind } from '../api/types';
+import { lookupMaxNameLength } from '../api/types';
 import { useAppToast } from '../hooks/useAppToast';
 import { ConfirmDialog } from '../components/ConfirmDialog';
 
@@ -45,6 +46,7 @@ const useStyles = makeStyles({
     alignItems: 'end',
   },
   grow: { flex: '1 1 220px' },
+  tabStrip: { overflowX: 'auto', flexShrink: 0 },
   actions: { display: 'flex', gap: '4px' },
   tableWrapper: { overflowX: 'auto' },
   destructive: {
@@ -57,19 +59,31 @@ const useStyles = makeStyles({
 });
 
 interface TabDefinition {
-  kind: LookupKind;
+  kind: EditableLookupKind;
   label: string;
+  /** Singular, for the "New …" button and the delete prompt. */
+  singular: string;
   hasDescription: boolean;
   hasSortOrder: boolean;
   hasLoadBalancer: boolean;
 }
 
+/**
+ * The eight editable lookups from the roadplan, in the order they are filled.
+ *
+ * AppRepositories is the ninth shared value but is not here: it carries a repository type and
+ * its own installation links, which the generic editor below cannot express. It has its own
+ * screen at /repositories.
+ */
 const tabs: TabDefinition[] = [
-  { kind: 'machines', label: 'Machines', hasDescription: true, hasSortOrder: false, hasLoadBalancer: false },
-  { kind: 'applications', label: 'Applications', hasDescription: true, hasSortOrder: false, hasLoadBalancer: false },
-  { kind: 'appstages', label: 'Stages', hasDescription: false, hasSortOrder: true, hasLoadBalancer: false },
-  { kind: 'processorarchitectures', label: 'Architectures', hasDescription: false, hasSortOrder: false, hasLoadBalancer: false },
-  { kind: 'dnsendpoints', label: 'DNS endpoints', hasDescription: true, hasSortOrder: false, hasLoadBalancer: true },
+  { kind: 'machines', label: 'Machines', singular: 'machine', hasDescription: true, hasSortOrder: false, hasLoadBalancer: false },
+  { kind: 'appnames', label: 'Applications', singular: 'application', hasDescription: true, hasSortOrder: false, hasLoadBalancer: false },
+  { kind: 'appstagenames', label: 'Stages', singular: 'stage', hasDescription: false, hasSortOrder: true, hasLoadBalancer: false },
+  { kind: 'processorarchitectures', label: 'Architectures', singular: 'architecture', hasDescription: false, hasSortOrder: false, hasLoadBalancer: false },
+  { kind: 'dnsendpoints', label: 'DNS endpoints', singular: 'DNS endpoint', hasDescription: true, hasSortOrder: false, hasLoadBalancer: true },
+  { kind: 'rootpaths', label: 'Root paths', singular: 'root path', hasDescription: false, hasSortOrder: false, hasLoadBalancer: false },
+  { kind: 'physicalpaths', label: 'Physical paths', singular: 'physical path', hasDescription: false, hasSortOrder: false, hasLoadBalancer: false },
+  { kind: 'tags', label: 'Tags', singular: 'tag', hasDescription: true, hasSortOrder: false, hasLoadBalancer: false },
 ];
 
 interface EditorState {
@@ -95,8 +109,8 @@ export function LookupsPage() {
   const { kind: routeKind } = useParams();
 
   // The tab lives in the URL, so a lookup screen can be linked to directly.
-  const activeKind = (tabs.find((t) => t.kind === routeKind)?.kind ?? 'machines') as LookupKind;
-  const tab = tabs.find((t) => t.kind === activeKind)!;
+  const tab = tabs.find((t) => t.kind === routeKind) ?? tabs[0];
+  const activeKind: EditableLookupKind = tab.kind;
 
   const [items, setItems] = useState<LookupItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -202,11 +216,14 @@ export function LookupsPage() {
           icon={<AddRegular />}
           onClick={() => setEditor({ ...blankEditor })}
         >
-          New {tab.label.toLowerCase().replace(/s$/, '')}
+          New {tab.singular}
         </Button>
       </div>
 
+      {/* Eight tabs do not fit a narrow window; the strip scrolls rather than wrapping into
+          two rows that push the table down the page. */}
       <TabList
+        className={styles.tabStrip}
         selectedValue={activeKind}
         onTabSelect={(_, data) => navigate(`/lookups/${data.value}`)}
       >
@@ -225,9 +242,17 @@ export function LookupsPage() {
 
       {editor && (
         <div className={styles.editorCard}>
-          <Field label="Name" required className={styles.grow}>
+          {/* maxLength mirrors the column width the server validates against, so an over-long
+              name is stopped here rather than coming back as a 400. */}
+          <Field
+            label="Name"
+            required
+            className={styles.grow}
+            hint={`Up to ${lookupMaxNameLength[activeKind]} characters.`}
+          >
             <Input
               value={editor.name}
+              maxLength={lookupMaxNameLength[activeKind]}
               onChange={(_, data) => setEditor({ ...editor, name: data.value })}
               autoFocus
             />
@@ -360,7 +385,7 @@ export function LookupsPage() {
       {pendingDelete && (
         <ConfirmDialog
           title={`Remove ${pendingDelete.name}`}
-          message={`Remove "${pendingDelete.name}" from ${tab.label.toLowerCase()}? Installations still pointing at it will block this.`}
+          message={`Remove the ${tab.singular} "${pendingDelete.name}"? Installations still pointing at it will block this.`}
           confirmLabel="Remove"
           isBusy={isDeleting}
           onConfirm={() => void confirmDelete()}

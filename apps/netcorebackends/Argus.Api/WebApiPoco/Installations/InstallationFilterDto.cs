@@ -4,19 +4,33 @@ namespace Argus.Api.WebApiPoco.Installations;
 
 /// <summary>
 /// Grid filter. Inherits paging/sorting/search from <see cref="DataViewFilterBase{T}"/>
-/// and adds the Id-based facets the installations screen offers.
+/// and adds the Id-based facets the installations screen offers — one per lookup.
 /// </summary>
 public class InstallationFilterDto : DataViewFilterBase<InstallationListItemDto>
 {
     public int? MachineId { get; set; }
 
-    public int? ApplicationId { get; set; }
+    public int? AppNameId { get; set; }
 
-    public int? AppStageId { get; set; }
+    public int? AppStageNameId { get; set; }
 
     public int? ProcessorArchitectureId { get; set; }
 
     public int? DnsEndpointId { get; set; }
+
+    public int? RootPathId { get; set; }
+
+    public int? PhysicalPathId { get; set; }
+
+    /// <summary>
+    /// Single tag, not a list: every other facet is one Id, and a list would need array
+    /// query-string binding plus an AND/OR decision nobody has made. Multi-select is a
+    /// clean follow-up if it is ever wanted.
+    /// </summary>
+    public int? TagId { get; set; }
+
+    /// <summary>Single repository, for the same reason as <see cref="TagId"/>.</summary>
+    public int? RepositoryId { get; set; }
 
     public bool? IsActive { get; set; }
 

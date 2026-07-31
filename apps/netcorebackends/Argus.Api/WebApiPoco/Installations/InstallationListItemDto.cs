@@ -20,7 +20,8 @@ public class InstallationListItemDto
     /// <summary>Disk path on the machine — in the grid so it is answerable without opening a row.</summary>
     public string? PhysicalPath { get; set; }
 
-    public string? Tags { get; set; }
+    /// <summary>Resolved tag names, sorted — the grid renders one badge per entry.</summary>
+    public IReadOnlyList<string> Tags { get; set; } = Array.Empty<string>();
 
     public bool IsActive { get; set; }
 

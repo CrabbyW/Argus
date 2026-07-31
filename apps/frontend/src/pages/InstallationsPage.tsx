@@ -53,7 +53,7 @@ const COLUMNS = [
   { key: 'dns', width: 145 },
   { key: 'rootPath', width: 175 },
   { key: 'physicalPath', width: 215 },
-  { key: 'tags', width: 100 },
+  { key: 'tags', width: 150 },
   { key: 'valid', width: 170 },
   { key: 'active', width: 85 },
   { key: 'actions', width: 110 },
@@ -113,6 +113,8 @@ const useStyles = makeStyles({
     ':focus-visible': { outline: `2px solid ${tokens.colorStrokeFocus2}`, outlineOffset: '2px' },
   },
   mono: { fontFamily: tokens.fontFamilyMonospace, fontSize: tokens.fontSizeBase200 },
+  // Tags are a set, not a sentence — badges wrap inside the cell rather than running past it.
+  tagList: { display: 'flex', flexWrap: 'wrap', gap: '4px' },
   nowrap: { whiteSpace: 'nowrap' },
   rowActions: { display: 'flex', gap: '4px' },
   // A destructive action must not look identical to Edit sitting next to it.
@@ -155,10 +157,14 @@ function readFilter(params: URLSearchParams): InstallationFilter {
     sortDirection: params.get('dir') === 'desc' ? 'desc' : 'asc',
     searchTerm: params.get('q') ?? '',
     machineId: num('machine'),
-    applicationId: num('app'),
-    appStageId: num('stage'),
+    appNameId: num('app'),
+    appStageNameId: num('stage'),
     processorArchitectureId: num('arch'),
     dnsEndpointId: num('dns'),
+    rootPathId: num('root'),
+    physicalPathId: num('ppath'),
+    tagId: num('tag'),
+    repositoryId: num('repo'),
     isActive: active === null ? null : active === 'true',
     validFrom: params.get('from'),
     validTo: params.get('to'),
@@ -176,10 +182,14 @@ function writeFilter(filter: InstallationFilter): URLSearchParams {
 
   set('q', filter.searchTerm);
   set('machine', filter.machineId);
-  set('app', filter.applicationId);
-  set('stage', filter.appStageId);
+  set('app', filter.appNameId);
+  set('stage', filter.appStageNameId);
   set('arch', filter.processorArchitectureId);
   set('dns', filter.dnsEndpointId);
+  set('root', filter.rootPathId);
+  set('ppath', filter.physicalPathId);
+  set('tag', filter.tagId);
+  set('repo', filter.repositoryId);
   set('from', filter.validFrom);
   set('to', filter.validTo);
 
@@ -405,11 +415,11 @@ export function InstallationsPage() {
           {facet('Machine', 'All machines', lookups.machines, filter.machineId, (id) =>
             patchFilter({ machineId: id }),
           )}
-          {facet('Application', 'All applications', lookups.applications, filter.applicationId, (id) =>
-            patchFilter({ applicationId: id }),
+          {facet('Application', 'All applications', lookups.appNames, filter.appNameId, (id) =>
+            patchFilter({ appNameId: id }),
           )}
-          {facet('Stage', 'All stages', lookups.appStages, filter.appStageId, (id) =>
-            patchFilter({ appStageId: id }),
+          {facet('Stage', 'All stages', lookups.appStageNames, filter.appStageNameId, (id) =>
+            patchFilter({ appStageNameId: id }),
           )}
           {/* The roadplan's headline question is "which machines serve paha.ga.local?" —
               this facet answers it directly instead of relying on the search box. */}
@@ -422,6 +432,22 @@ export function InstallationsPage() {
             lookups.processorArchitectures,
             filter.processorArchitectureId,
             (id) => patchFilter({ processorArchitectureId: id }),
+          )}
+          {facet('Root path', 'All root paths', lookups.rootPaths, filter.rootPathId, (id) =>
+            patchFilter({ rootPathId: id }),
+          )}
+          {facet(
+            'Physical path',
+            'All physical paths',
+            lookups.physicalPaths,
+            filter.physicalPathId,
+            (id) => patchFilter({ physicalPathId: id }),
+          )}
+          {facet('Tag', 'All tags', lookups.tags, filter.tagId, (id) =>
+            patchFilter({ tagId: id }),
+          )}
+          {facet('Repository', 'All repositories', lookups.repositories, filter.repositoryId, (id) =>
+            patchFilter({ repositoryId: id }),
           )}
 
           <Field label="Serving">
@@ -551,8 +577,18 @@ export function InstallationsPage() {
                 >
                   {item.physicalPath ?? <span className={styles.muted}>—</span>}
                 </TableCell>
-                <TableCell className={styles.truncate} title={item.tags ?? undefined}>
-                  {item.tags ?? <span className={styles.muted}>—</span>}
+                <TableCell title={item.tags.join(', ')}>
+                  {item.tags.length === 0 ? (
+                    <span className={styles.muted}>—</span>
+                  ) : (
+                    <div className={styles.tagList}>
+                      {item.tags.map((tag) => (
+                        <Badge key={tag} appearance="tint" color="informative" size="small">
+                          {tag}
+                        </Badge>
+                      ))}
+                    </div>
+                  )}
                 </TableCell>
                 <TableCell className={styles.nowrap}>
                   {item.validFromDate} →{' '}
