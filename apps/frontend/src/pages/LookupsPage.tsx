@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import {
   Badge,
@@ -25,10 +25,11 @@ import {
 } from '@fluentui/react-components';
 import { AddRegular, DeleteRegular, DismissRegular, EditRegular, SaveRegular } from '@fluentui/react-icons';
 import { api } from '../api/client';
-import type { EditableLookupKind, LookupItem, LookupKind } from '../api/types';
-import { lookupMaxNameLength } from '../api/types';
+import type { LookupItem, LookupKind } from '../api/types';
 import { useAppToast } from '../hooks/useAppToast';
+import { useLookupMetadata } from '../hooks/useLookupMetadata';
 import { ConfirmDialog } from '../components/ConfirmDialog';
+import { useSheetStyles } from '../styles/sheetStyles';
 
 const useStyles = makeStyles({
   root: { display: 'flex', flexDirection: 'column', rowGap: '20px' },
@@ -58,34 +59,6 @@ const useStyles = makeStyles({
   },
 });
 
-interface TabDefinition {
-  kind: EditableLookupKind;
-  label: string;
-  /** Singular, for the "New …" button and the delete prompt. */
-  singular: string;
-  hasDescription: boolean;
-  hasSortOrder: boolean;
-  hasLoadBalancer: boolean;
-}
-
-/**
- * The eight editable lookups from the roadplan, in the order they are filled.
- *
- * AppRepositories is the ninth shared value but is not here: it carries a repository type and
- * its own installation links, which the generic editor below cannot express. It has its own
- * screen at /repositories.
- */
-const tabs: TabDefinition[] = [
-  { kind: 'machines', label: 'Machines', singular: 'machine', hasDescription: true, hasSortOrder: false, hasLoadBalancer: false },
-  { kind: 'appnames', label: 'Applications', singular: 'application', hasDescription: true, hasSortOrder: false, hasLoadBalancer: false },
-  { kind: 'appstagenames', label: 'Stages', singular: 'stage', hasDescription: false, hasSortOrder: true, hasLoadBalancer: false },
-  { kind: 'processorarchitectures', label: 'Architectures', singular: 'architecture', hasDescription: false, hasSortOrder: false, hasLoadBalancer: false },
-  { kind: 'dnsendpoints', label: 'DNS endpoints', singular: 'DNS endpoint', hasDescription: true, hasSortOrder: false, hasLoadBalancer: true },
-  { kind: 'rootpaths', label: 'Root paths', singular: 'root path', hasDescription: false, hasSortOrder: false, hasLoadBalancer: false },
-  { kind: 'physicalpaths', label: 'Physical paths', singular: 'physical path', hasDescription: false, hasSortOrder: false, hasLoadBalancer: false },
-  { kind: 'tags', label: 'Tags', singular: 'tag', hasDescription: true, hasSortOrder: false, hasLoadBalancer: false },
-];
-
 interface EditorState {
   id: number | null;
   name: string;
@@ -104,13 +77,25 @@ const blankEditor: EditorState = {
 
 export function LookupsPage() {
   const styles = useStyles();
+  const sheet = useSheetStyles();
   const navigate = useNavigate();
   const toast = useAppToast();
   const { kind: routeKind } = useParams();
 
-  // The tab lives in the URL, so a lookup screen can be linked to directly.
+  const { metadata, error: metadataError } = useLookupMetadata();
+
+  /**
+   * The tabs, straight from the server. Read-only kinds are dropped: AppRepositories carries a
+   * type and its own installation links, which the generic editor below cannot express, and it
+   * has its own screen at /repositories. Everything else appears here on its own — a lookup added
+   * on the server needs no change to this file.
+   */
+  const tabs = useMemo(() => metadata.filter((meta) => !meta.isReadOnly), [metadata]);
+
+  // The tab lives in the URL, so a lookup screen can be linked to directly. Undefined until the
+  // metadata request comes back.
   const tab = tabs.find((t) => t.kind === routeKind) ?? tabs[0];
-  const activeKind: EditableLookupKind = tab.kind;
+  const activeKind: LookupKind | undefined = tab?.kind;
 
   const [items, setItems] = useState<LookupItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -122,7 +107,14 @@ export function LookupsPage() {
 
   // Id + Name + Actions, plus whichever optional columns this tab shows.
   const columnCount =
-    3 + Number(tab.hasDescription) + Number(tab.hasSortOrder) + Number(tab.hasLoadBalancer);
+    3 + Number(tab?.hasDescription) + Number(tab?.hasSortOrder) + Number(tab?.hasLoadBalancer);
+
+  /**
+   * Numbered from 1 down, as the source sheets are. The server orders lookups by name — right for
+   * the dropdowns it also feeds, wrong here, where the Id is the first column and a list that
+   * reads 2, 4, 1, 3 looks like a mistake. Sorted on the client so the dropdowns stay alphabetical.
+   */
+  const rows = useMemo(() => [...items].sort((a, b) => a.id - b.id), [items]);
 
   const load = useCallback(async (kind: LookupKind) => {
     setIsLoading(true);
@@ -139,11 +131,15 @@ export function LookupsPage() {
 
   useEffect(() => {
     setEditor(null);
-    void load(activeKind);
+
+    // Nothing to load until the metadata says which kinds exist.
+    if (activeKind) {
+      void load(activeKind);
+    }
   }, [activeKind, load]);
 
   async function handleSave() {
-    if (!editor || !editor.name.trim()) {
+    if (!editor || !editor.name.trim() || !activeKind) {
       return;
     }
 
@@ -180,7 +176,7 @@ export function LookupsPage() {
   }
 
   async function confirmDelete() {
-    if (!pendingDelete) {
+    if (!pendingDelete || !activeKind) {
       return;
     }
 
@@ -208,7 +204,7 @@ export function LookupsPage() {
       <div className={styles.pageHeader}>
         <Title3>Lookups</Title3>
         <Text className={styles.muted}>
-          {items.length} record{items.length === 1 ? '' : 's'} in {tab.label.toLowerCase()}
+          {items.length} record{items.length === 1 ? '' : 's'} in {tab?.label.toLowerCase()}
         </Text>
         <div className={styles.spacer} />
         <Button
@@ -216,11 +212,11 @@ export function LookupsPage() {
           icon={<AddRegular />}
           onClick={() => setEditor({ ...blankEditor })}
         >
-          New {tab.singular}
+          New {tab?.singular}
         </Button>
       </div>
 
-      {/* Eight tabs do not fit a narrow window; the strip scrolls rather than wrapping into
+      {/* The tabs do not fit a narrow window; the strip scrolls rather than wrapping into
           two rows that push the table down the page. */}
       <TabList
         className={styles.tabStrip}
@@ -233,6 +229,14 @@ export function LookupsPage() {
           </Tab>
         ))}
       </TabList>
+
+      {/* Surfaced rather than swallowed: with no metadata the screen has no tabs at all, and an
+          empty strip reads as "there are no lookups" instead of "the request failed". */}
+      {metadataError && (
+        <MessageBar intent="error">
+          <MessageBarBody>{metadataError}</MessageBarBody>
+        </MessageBar>
+      )}
 
       {error && (
         <MessageBar intent="error">
@@ -248,17 +252,17 @@ export function LookupsPage() {
             label="Name"
             required
             className={styles.grow}
-            hint={`Up to ${lookupMaxNameLength[activeKind]} characters.`}
+            hint={`Up to ${tab?.maxNameLength} characters.`}
           >
             <Input
               value={editor.name}
-              maxLength={lookupMaxNameLength[activeKind]}
+              maxLength={tab?.maxNameLength}
               onChange={(_, data) => setEditor({ ...editor, name: data.value })}
               autoFocus
             />
           </Field>
 
-          {tab.hasDescription && (
+          {tab?.hasDescription && (
             <Field label="Description" className={styles.grow}>
               <Input
                 value={editor.description}
@@ -267,7 +271,7 @@ export function LookupsPage() {
             </Field>
           )}
 
-          {tab.hasSortOrder && (
+          {tab?.hasSortOrder && (
             <Field label="Sort order" hint="Controls the order stages appear in.">
               <Input
                 type="number"
@@ -277,7 +281,7 @@ export function LookupsPage() {
             </Field>
           )}
 
-          {tab.hasLoadBalancer && (
+          {tab?.hasLoadBalancer && (
             <Switch
               checked={editor.isLoadBalancer}
               onChange={(_, data) => setEditor({ ...editor, isLoadBalancer: data.checked })}
@@ -303,20 +307,36 @@ export function LookupsPage() {
         <Spinner label="Loading..." />
       ) : (
         <div className={styles.tableWrapper}>
-          <Table size="small">
+          <Table size="small" className={sheet.table}>
+            {/*
+              Fluent's Table is `table-layout: fixed`, so without this the four columns each take
+              a quarter and the Id column ends up wider than the names it numbers. Id is as narrow
+              as a number needs; Name and Description take what is left, as on the source sheet.
+            */}
+            <colgroup>
+              <col style={{ width: '70px' }} />
+              <col style={{ width: '260px' }} />
+              {tab?.hasDescription && <col />}
+              {tab?.hasSortOrder && <col style={{ width: '110px' }} />}
+              {tab?.hasLoadBalancer && <col style={{ width: '140px' }} />}
+              <col style={{ width: '110px' }} />
+            </colgroup>
+
             <TableHeader>
+              {/* Id first, then the name — the same column order as the source workbook's
+                  lookup sheets, which is what these screens replace. */}
               <TableRow>
-                <TableHeaderCell>Id</TableHeaderCell>
-                <TableHeaderCell>Name</TableHeaderCell>
-                {tab.hasDescription && <TableHeaderCell>Description</TableHeaderCell>}
-                {tab.hasSortOrder && <TableHeaderCell>Sort order</TableHeaderCell>}
-                {tab.hasLoadBalancer && <TableHeaderCell>Load balancer</TableHeaderCell>}
-                <TableHeaderCell>Actions</TableHeaderCell>
+                <TableHeaderCell className={sheet.headerCell}>Id</TableHeaderCell>
+                <TableHeaderCell className={sheet.headerCell}>Name</TableHeaderCell>
+                {tab?.hasDescription && <TableHeaderCell className={sheet.headerCell}>Description</TableHeaderCell>}
+                {tab?.hasSortOrder && <TableHeaderCell className={sheet.headerCell}>Sort order</TableHeaderCell>}
+                {tab?.hasLoadBalancer && <TableHeaderCell className={sheet.headerCell}>Load balancer</TableHeaderCell>}
+                <TableHeaderCell className={sheet.headerCell}>Actions</TableHeaderCell>
               </TableRow>
             </TableHeader>
 
             <TableBody>
-              {items.length === 0 && (
+              {rows.length === 0 && (
                 <TableRow>
                   <TableCell colSpan={columnCount}>
                     <span className={styles.muted}>No items yet.</span>
@@ -324,15 +344,15 @@ export function LookupsPage() {
                 </TableRow>
               )}
 
-              {items.map((item) => (
+              {rows.map((item) => (
                 <TableRow key={item.id}>
-                  <TableCell className={styles.muted}>{item.id}</TableCell>
+                  <TableCell className={sheet.idCell}>{item.id}</TableCell>
                   <TableCell>{item.name}</TableCell>
-                  {tab.hasDescription && (
+                  {tab?.hasDescription && (
                     <TableCell>{item.description ?? <span className={styles.muted}>—</span>}</TableCell>
                   )}
-                  {tab.hasSortOrder && <TableCell>{item.sortOrder}</TableCell>}
-                  {tab.hasLoadBalancer && (
+                  {tab?.hasSortOrder && <TableCell>{item.sortOrder}</TableCell>}
+                  {tab?.hasLoadBalancer && (
                     <TableCell>
                       {item.isLoadBalancer ? (
                         <Badge appearance="filled" color="brand">
@@ -385,7 +405,7 @@ export function LookupsPage() {
       {pendingDelete && (
         <ConfirmDialog
           title={`Remove ${pendingDelete.name}`}
-          message={`Remove the ${tab.singular} "${pendingDelete.name}"? Installations still pointing at it will block this.`}
+          message={`Remove the ${tab?.singular} "${pendingDelete.name}"? Installations still pointing at it will block this.`}
           confirmLabel="Remove"
           isBusy={isDeleting}
           onConfirm={() => void confirmDelete()}

@@ -22,14 +22,26 @@ public enum LookupKind
 
     /// <summary>
     /// Readable through this service, but not writable: <see cref="LookupUpsertDto"/> has nowhere
-    /// to put RepositoryType or the installation links, so a round-trip through here would erase
-    /// them. Writes go through <see cref="IAppRepositoryService"/>.
+    /// to put the repository type or the installation links, so a round-trip through here would
+    /// erase both. Writes go through <see cref="IAppRepositoryService"/>.
     /// </summary>
-    AppRepositories
+    AppRepositories,
+
+    /// <summary>
+    /// Appended rather than slotted in next to <see cref="AppRepositories"/>, which reads better:
+    /// the values are stable by the rule above, and inserting would renumber AppRepositories.
+    /// </summary>
+    RepositoryTypes
 }
 
 public interface ILookupService
 {
+    /// <summary>
+    /// Describes every kind: what to call it, which optional fields it has, how long a name may
+    /// be. The lookup screen builds itself from this, so a new kind needs no frontend change.
+    /// </summary>
+    IReadOnlyList<LookupMetadataDto> GetMetadata();
+
     Task<IReadOnlyList<LookupItemDto>> GetAllAsync(LookupKind kind);
 
     Task<LookupItemDto?> GetByIdAsync(LookupKind kind, int id);
@@ -41,8 +53,9 @@ public interface ILookupService
     Task<LookupItemDto?> UpdateAsync(LookupKind kind, int id, LookupUpsertDto dto);
 
     /// <summary>
-    /// Soft delete. Throws <see cref="ArgumentException"/> if still referenced by a live
-    /// installation, <see cref="NotSupportedException"/> for a read-only kind.
+    /// Soft delete. Throws <see cref="ArgumentException"/> if the row is still referenced —
+    /// by a live installation for most kinds, by a repository for RepositoryTypes —
+    /// and <see cref="NotSupportedException"/> for a read-only kind.
     /// </summary>
     Task<bool> DeleteAsync(LookupKind kind, int id);
 }

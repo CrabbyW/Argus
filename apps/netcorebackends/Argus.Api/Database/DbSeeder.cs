@@ -1,5 +1,4 @@
 using Argus.Api.Database.Entities;
-using Argus.Api.Database.Entities.Enums;
 using Argus.Api.Services;
 using log4net;
 using Microsoft.EntityFrameworkCore;
@@ -112,6 +111,18 @@ public static class DbSeeder
                 new Tag { Name = "rc" },
                 new Tag { Name = "prod" },
                 new Tag { Name = "service" });
+        }
+
+        // The set the old RepositoryType enum hardcoded. Now rows, so a new system is an entry in
+        // the lookup screen rather than a code change.
+        if (!await db.RepositoryTypes.AnyAsync())
+        {
+            db.RepositoryTypes.AddRange(
+                new RepositoryType { Name = "Git" },
+                new RepositoryType { Name = "Svn" },
+                new RepositoryType { Name = "Bitbucket" },
+                new RepositoryType { Name = "Mercurial" },
+                new RepositoryType { Name = "Tfs" });
         }
 
         await db.SaveChangesAsync();
@@ -232,23 +243,29 @@ public static class DbSeeder
         static List<InstallationRepository> LinkedTo(IEnumerable<int> installationIds) =>
             installationIds.Select(id => new InstallationRepository { InstallationId = id }).ToList();
 
+        // Looked up by name, not by a hardcoded Id: the ids depend on insertion order, and this
+        // seed is the one place where writing them out would look harmless and drift silently.
+        var git = await db.RepositoryTypes.SingleAsync(x => x.Name == "Git");
+        var svn = await db.RepositoryTypes.SingleAsync(x => x.Name == "Svn");
+        var bitbucket = await db.RepositoryTypes.SingleAsync(x => x.Name == "Bitbucket");
+
         db.AppRepositories.AddRange(
             new AppRepository
             {
                 Name = "git://git.local/callcenter.git",
-                RepositoryType = RepositoryType.Git,
+                RepositoryTypeId = git.Id,
                 InstallationRepositories = LinkedTo(callCenterInstallations)
             },
             new AppRepository
             {
                 Name = "svn://svn.local/callcenter/trunk",
-                RepositoryType = RepositoryType.Svn,
+                RepositoryTypeId = svn.Id,
                 InstallationRepositories = LinkedTo(callCenterInstallations)
             },
             new AppRepository
             {
                 Name = "bitbucket://team/extranet",
-                RepositoryType = RepositoryType.Bitbucket,
+                RepositoryTypeId = bitbucket.Id,
                 InstallationRepositories = LinkedTo(extranetInstallations)
             });
 

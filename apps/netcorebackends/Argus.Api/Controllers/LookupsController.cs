@@ -11,9 +11,9 @@ namespace Argus.Api.Controllers;
 /// The lookup tables share one shape, so they share one controller. These are the tables that are
 /// filled before any installation can be recorded.
 ///
-/// <c>kind</c> is one of: machines, appnames, appstagenames, processorarchitectures, dnsendpoints,
-/// rootpaths, physicalpaths, tags, apprepositories. The last is readable only — repositories are
-/// written through <c>/api/AppRepositories</c>, because their type and installation links have
+/// The kinds are not listed here on purpose — <c>GET /api/lookups</c> enumerates them, and that
+/// is the list the UI builds itself from. <c>apprepositories</c> is readable only: repositories
+/// are written through <c>/api/AppRepositories</c>, because their type and installation links have
 /// nowhere to live in the shared lookup payload.
 /// </summary>
 [ApiController]
@@ -29,6 +29,21 @@ public class LookupsController : ControllerBase
     {
         this.lookupService = lookupService;
     }
+
+    /// <summary>
+    /// Every kind and how to render it. Deliberately the first call the lookup screen makes: the
+    /// tabs, the form fields and the name-length limits all come from here rather than from a copy
+    /// kept in the frontend.
+    /// </summary>
+    [HttpGet]
+    [EndpointName("Lookups_GetLookupMetadata")]
+    [ProducesResponseType(typeof(ApiResponse<IReadOnlyList<LookupMetadataDto>>), StatusCodes.Status200OK)]
+    public IActionResult GetLookupMetadata() =>
+        Ok(new ApiResponse<IReadOnlyList<LookupMetadataDto>>
+        {
+            Success = true,
+            Data = lookupService.GetMetadata()
+        });
 
     [HttpGet("{kind}")]
     [EndpointName("Lookups_GetLookupItems")]

@@ -11,7 +11,14 @@ public class AppRepositoryConfiguration : IEntityTypeConfiguration<AppRepository
         builder.HasKey(x => x.Id);
 
         builder.Property(x => x.Name).HasColumnName("RepositoryUrl").IsRequired().HasMaxLength(512);
-        builder.Property(x => x.RepositoryType).IsRequired().HasConversion<int>();
+        // Restrict, not Cascade or SetNull: deleting a type that repositories still point at must
+        // fail loudly rather than quietly rewriting their type. The lookup layer refuses it before
+        // the database ever sees it (see LookupRegistry), and this is the backstop.
+        builder.HasOne(x => x.RepositoryType)
+               .WithMany(x => x.AppRepositories)
+               .HasForeignKey(x => x.RepositoryTypeId)
+               .OnDelete(DeleteBehavior.Restrict);
+
         builder.Property(x => x.Description).HasMaxLength(512);
         builder.Property(x => x.IsEnabled).IsRequired().HasDefaultValue(true);
 

@@ -43,6 +43,8 @@ internal sealed class TestDb : IDisposable
     public const int RootSlash = 1;
     public const int DiskDefault = 1;
     public const int TagWeb = 1;
+    public const int RepoTypeGit = 1;
+    public const int RepoTypeSvn = 2;
 
     public static TestDb CreateSeeded()
     {
@@ -73,6 +75,10 @@ internal sealed class TestDb : IDisposable
         db.PhysicalPaths.Add(new PhysicalPath { Id = DiskDefault, Name = @"c:\inetpub\callcenter" });
 
         db.Tags.Add(new Tag { Id = TagWeb, Name = "web" });
+
+        db.RepositoryTypes.AddRange(
+            new RepositoryType { Id = RepoTypeGit, Name = "Git" },
+            new RepositoryType { Id = RepoTypeSvn, Name = "Svn" });
 
         db.SaveChanges();
 

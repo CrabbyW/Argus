@@ -9,7 +9,7 @@ namespace Argus.Api.Services;
 
 /// <summary>
 /// The write path for repositories. They are readable through the generic lookup layer too, but
-/// only there — RepositoryType and the installation links have nowhere to live in
+/// only there — the repository type and the installation links have nowhere to live in
 /// <c>LookupUpsertDto</c>, so every change comes through here.
 /// </summary>
 public class AppRepositoryService : IAppRepositoryService
@@ -28,6 +28,7 @@ public class AppRepositoryService : IAppRepositoryService
         var query = db.AppRepositories
             .AsNoTracking()
             .Include(x => x.InstallationRepositories)
+            .Include(x => x.RepositoryType)
             .AsQueryable();
 
         if (installationId is not null)
@@ -56,6 +57,7 @@ public class AppRepositoryService : IAppRepositoryService
         var entity = await db.AppRepositories
             .AsNoTracking()
             .Include(x => x.InstallationRepositories)
+            .Include(x => x.RepositoryType)
             .FirstOrDefaultAsync(x => x.Id == id);
 
         return entity is null ? null : InstallationMapper.ToAppRepositoryDto(entity);
@@ -67,11 +69,12 @@ public class AppRepositoryService : IAppRepositoryService
 
         await EnsureUrlIsFreeAsync(url, excludeId: null);
         await EnsureInstallationsExistAsync(dto.InstallationIds);
+        await EnsureRepositoryTypeExistsAsync(dto.RepositoryTypeId);
 
         var entity = new AppRepository
         {
             Name = url,
-            RepositoryType = dto.RepositoryType,
+            RepositoryTypeId = dto.RepositoryTypeId,
             Description = dto.Description
         };
 
@@ -99,9 +102,10 @@ public class AppRepositoryService : IAppRepositoryService
 
         await EnsureUrlIsFreeAsync(url, excludeId: id);
         await EnsureInstallationsExistAsync(dto.InstallationIds);
+        await EnsureRepositoryTypeExistsAsync(dto.RepositoryTypeId);
 
         entity.Name = url;
-        entity.RepositoryType = dto.RepositoryType;
+        entity.RepositoryTypeId = dto.RepositoryTypeId;
         entity.Description = dto.Description;
 
         SyncInstallationLinks(entity, dto);
@@ -156,6 +160,23 @@ public class AppRepositoryService : IAppRepositoryService
             {
                 throw new ArgumentException($"Installation {installationId} does not exist.");
             }
+        }
+    }
+
+    /// <summary>
+    /// The type must be a live row, the same rule InstallationService applies to every lookup Id
+    /// it accepts. Null is the one allowed non-value: "not recorded".
+    /// </summary>
+    private async Task EnsureRepositoryTypeExistsAsync(int? repositoryTypeId)
+    {
+        if (repositoryTypeId is not int typeId)
+        {
+            return;
+        }
+
+        if (!await db.RepositoryTypes.AnyAsync(x => x.Id == typeId))
+        {
+            throw new ArgumentException($"Repository type {typeId} does not exist.");
         }
     }
 

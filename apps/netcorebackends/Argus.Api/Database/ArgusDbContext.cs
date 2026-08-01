@@ -19,6 +19,7 @@ public class ArgusDbContext : DbContext
     public DbSet<PhysicalPath> PhysicalPaths => Set<PhysicalPath>();
     public DbSet<AppRepository> AppRepositories => Set<AppRepository>();
     public DbSet<Tag> Tags => Set<Tag>();
+    public DbSet<RepositoryType> RepositoryTypes => Set<RepositoryType>();
 
     // --- The result table: nothing but references into the lookups above, plus its own dates ---
     public DbSet<ApplicationInstallation> ApplicationInstallations => Set<ApplicationInstallation>();

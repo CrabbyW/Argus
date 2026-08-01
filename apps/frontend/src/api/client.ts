@@ -11,6 +11,7 @@ import type {
   InstallationUpsert,
   LookupItem,
   LookupKind,
+  LookupMetadata,
   LookupUpsert,
   LoginRequest,
   LoginResponse,
@@ -123,6 +124,9 @@ export const api = {
 
   deleteInstallation: (id: number) =>
     request<boolean>(`/installations/${id}`, { method: 'DELETE' }),
+
+  /** Every lookup kind and how to render it. The Lookups screen starts here. */
+  getLookupMetadata: () => request<LookupMetadata[]>('/lookups'),
 
   getLookup: (kind: LookupKind) => request<LookupItem[]>(`/lookups/${kind}`),
 

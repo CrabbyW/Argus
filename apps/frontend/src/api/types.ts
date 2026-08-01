@@ -45,10 +45,14 @@ export interface LookupUpsert {
 /**
  * Matches the `LookupKind` enum on the server (route is case-insensitive).
  *
- * All nine shared values from the roadplan. `apprepositories` is readable here — a dropdown
- * of repositories is the same query as any other kind — but writes go through
- * `/api/apprepositories`, because `LookupUpsert` has nowhere to put the repository type or
- * the installation links and would erase both.
+ * The list stays here — and only here — because the installation form reaches for specific kinds
+ * by name (`lookups.machines`), and a type cannot be derived from a runtime endpoint. Everything
+ * *about* a kind (label, name length, which fields it has, whether it is writable) comes from
+ * `GET /api/lookups` instead of being written down a second time.
+ *
+ * `apprepositories` is readable here — a dropdown of repositories is the same query as any other
+ * kind — but writes go through `/api/apprepositories`, because `LookupUpsert` has nowhere to put
+ * the repository type or the installation links and would erase both.
  */
 export type LookupKind =
   | 'machines'
@@ -59,48 +63,30 @@ export type LookupKind =
   | 'rootpaths'
   | 'physicalpaths'
   | 'tags'
+  | 'repositorytypes'
   | 'apprepositories';
 
-/** The eight kinds the Lookups screen may create, edit and delete. */
-export const editableLookupKinds = [
-  'machines',
-  'appnames',
-  'appstagenames',
-  'processorarchitectures',
-  'dnsendpoints',
-  'rootpaths',
-  'physicalpaths',
-  'tags',
-] as const satisfies readonly LookupKind[];
-
-export type EditableLookupKind = (typeof editableLookupKinds)[number];
-
 /**
- * Mirrors the `HasMaxLength` on each entity's `Name` in
- * `Database/Entities/Configurations/`, which `LookupHandler.MaxNameLength()` reads out of the
- * EF model at runtime. Kept in sync by hand so the form stops an over-long name before the
- * round trip; the server check remains the real one.
+ * A grid row. Carries both halves of every reference — the foreign key and the name it resolves
+ * to — because the grid shows the Ids by default (the roadplan's fact table is references only)
+ * and the names on hover or in the names view.
  */
-export const lookupMaxNameLength: Record<LookupKind, number> = {
-  machines: 128,
-  appnames: 128,
-  appstagenames: 64,
-  processorarchitectures: 32,
-  dnsendpoints: 256,
-  rootpaths: 256,
-  physicalpaths: 512,
-  tags: 64,
-  apprepositories: 512,
-};
-
 export interface InstallationListItem {
   id: number;
+  machineId: number;
   machineName: string;
+  appNameId: number;
   appName: string;
+  appStageNameId: number;
   appStageName: string;
+  processorArchitectureId: number;
   processorArchitecture: string;
+  /** Null for a service or console app, which has no public address. */
+  dnsEndpointId?: number | null;
   dnsName?: string | null;
+  rootPathId: number;
   rootPath: string;
+  physicalPathId?: number | null;
   physicalPath?: string | null;
   /** Resolved tag names, sorted. One badge per entry. */
   tags: string[];
@@ -112,7 +98,10 @@ export interface InstallationListItem {
 export interface AppRepository {
   id: number;
   repositoryUrl: string;
-  repositoryType: number;
+  /** Id into the repositorytypes lookup; null when it was never recorded. */
+  repositoryTypeId?: number | null;
+  /** Display name for the id above, so a grid renders without a second request. */
+  repositoryTypeName?: string | null;
   description?: string | null;
   /** Installations built from this repository. Many-to-many, not an owning application. */
   installationIds: number[];
@@ -120,7 +109,7 @@ export interface AppRepository {
 
 export interface AppRepositoryUpsert {
   repositoryUrl: string;
-  repositoryType: number;
+  repositoryTypeId?: number | null;
   description?: string | null;
   /** An empty list leaves the repository registered but unattached. */
   installationIds: number[];
@@ -222,12 +211,18 @@ export interface CurrentUser {
   displayName: string;
 }
 
-/** Names the repositoryType numbers coming from the server enum. */
-export const repositoryTypeNames: Record<number, string> = {
-  0: 'Unknown',
-  1: 'Git',
-  2: 'SVN',
-  3: 'Bitbucket',
-  4: 'Mercurial',
-  5: 'TFS',
-};
+/**
+ * Describes one lookup kind, straight from `GET /api/lookups`. The Lookups screen builds its tabs
+ * and form fields from these rather than from a list kept here, so a kind added on the server
+ * appears in the UI with no frontend change.
+ */
+export interface LookupMetadata {
+  kind: LookupKind;
+  label: string;
+  singular: string;
+  isReadOnly: boolean;
+  maxNameLength: number;
+  hasDescription: boolean;
+  hasSortOrder: boolean;
+  hasLoadBalancer: boolean;
+}

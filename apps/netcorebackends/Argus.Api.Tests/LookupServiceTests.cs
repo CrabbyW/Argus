@@ -187,6 +187,33 @@ public class LookupServiceTests
     }
 
     /// <summary>
+    /// The UI builds its tabs, its form fields and its length limits from <c>GET /api/lookups</c>,
+    /// so a kind whose metadata is blank does not fail here — it renders as an unlabelled tab with
+    /// an input that accepts nothing. The point of moving these facts to the server was to have one
+    /// copy; this checks that copy is filled in.
+    /// </summary>
+    [Fact]
+    public void Every_lookup_kind_describes_itself_for_the_ui()
+    {
+        using var testDb = TestDb.CreateSeeded();
+        using var db = testDb.NewContext();
+
+        var metadata = new LookupService(db).GetMetadata();
+
+        Assert.Equal(Enum.GetValues<LookupKind>().Length, metadata.Count);
+
+        foreach (var meta in metadata)
+        {
+            Assert.False(string.IsNullOrWhiteSpace(meta.Label), $"{meta.Kind} has no label.");
+            Assert.False(string.IsNullOrWhiteSpace(meta.Singular), $"{meta.Kind} has no singular.");
+            Assert.True(meta.MaxNameLength > 0, $"{meta.Kind} reports no name length.");
+
+            // Lower-case so a client can put it straight into a url.
+            Assert.Equal(meta.Kind.ToLowerInvariant(), meta.Kind);
+        }
+    }
+
+    /// <summary>
     /// The name length check reads <c>HasMaxLength</c> off the EF model rather than a hand-kept
     /// table. A lookup configured without one would only fail as a raw database error on save.
     /// </summary>

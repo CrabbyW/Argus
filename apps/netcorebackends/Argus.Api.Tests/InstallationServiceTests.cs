@@ -361,4 +361,72 @@ public class InstallationServiceTests
             Assert.Equal(2, page.Items.Count);
         }
     }
+
+    /// <summary>
+    /// The grid shows the foreign keys themselves — that is the roadplan's fact table, a row of
+    /// references and nothing else. They travel on the list row, so a mapper that forgets one
+    /// leaves a blank column on the main screen with nothing else failing. Every reference is
+    /// asserted against the entity it came from rather than against a literal, so this keeps
+    /// holding if the seed changes.
+    /// </summary>
+    [Fact]
+    public async Task A_list_row_reports_the_same_references_the_installation_holds()
+    {
+        using var testDb = TestDb.CreateSeeded();
+
+        int createdId;
+
+        await using (var db = testDb.NewContext())
+        {
+            var created = await new InstallationService(db).CreateInstallationAsync(
+                Deployment(machineId: TestDb.Gaiis1, appNameId: TestDb.CallCenter));
+            createdId = created.Id;
+        }
+
+        await using (var db = testDb.NewContext())
+        {
+            var entity = await db.ApplicationInstallations.SingleAsync(i => i.Id == createdId);
+
+            var row = (await new InstallationService(db).GetInstallationsAsync(new InstallationFilterDto()))
+                .Items.Single(i => i.Id == createdId);
+
+            Assert.Equal(entity.MachineId, row.MachineId);
+            Assert.Equal(entity.AppNameId, row.AppNameId);
+            Assert.Equal(entity.AppStageNameId, row.AppStageNameId);
+            Assert.Equal(entity.ProcessorArchitectureId, row.ProcessorArchitectureId);
+            Assert.Equal(entity.DnsEndpointId, row.DnsEndpointId);
+            Assert.Equal(entity.RootPathId, row.RootPathId);
+            Assert.Equal(entity.PhysicalPathId, row.PhysicalPathId);
+        }
+    }
+
+    /// <summary>
+    /// The two optional references stay null on the way out. An Id view renders null as an empty
+    /// cell; a mapper that defaulted them to 0 would print a reference to a lookup row that does
+    /// not exist.
+    /// </summary>
+    [Fact]
+    public async Task Optional_references_stay_null_on_a_list_row()
+    {
+        using var testDb = TestDb.CreateSeeded();
+
+        int createdId;
+
+        await using (var db = testDb.NewContext())
+        {
+            var upsert = Deployment(physicalPathId: null);
+            upsert.DnsEndpointId = null;
+
+            createdId = (await new InstallationService(db).CreateInstallationAsync(upsert)).Id;
+        }
+
+        await using (var db = testDb.NewContext())
+        {
+            var row = (await new InstallationService(db).GetInstallationsAsync(new InstallationFilterDto()))
+                .Items.Single(i => i.Id == createdId);
+
+            Assert.Null(row.DnsEndpointId);
+            Assert.Null(row.PhysicalPathId);
+        }
+    }
 }

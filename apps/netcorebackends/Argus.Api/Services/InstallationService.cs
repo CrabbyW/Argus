@@ -320,7 +320,12 @@ public class InstallationService : IInstallationService
                     // repository back in a PUT would unlink it from its sibling installations,
                     // because AppRepositoryService.UpdateAsync treats InstallationIds as the
                     // complete target state.
-                    .ThenInclude(repo => repo.InstallationRepositories);
+                    .ThenInclude(repo => repo.InstallationRepositories)
+
+            // Second branch off the same repository, for the type's display name.
+            .Include(x => x.InstallationRepositories)
+                .ThenInclude(link => link.AppRepository)
+                    .ThenInclude(repo => repo.RepositoryType);
     }
 
     /// <summary>

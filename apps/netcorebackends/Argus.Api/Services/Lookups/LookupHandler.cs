@@ -120,21 +120,9 @@ internal sealed class LookupHandler<TEntity> : ILookupHandler
         }
     }
 
-    /// <summary>
-    /// The column width, read from the EF model rather than copied into a table here. The point of
-    /// this check is to mirror the configuration; a hand-kept copy is exactly what drifts, and the
-    /// drift only shows up as a raw SqlException on save.
-    /// </summary>
-    private int MaxNameLength() =>
-        db.Model.FindEntityType(typeof(TEntity))!
-          .FindProperty(nameof(ILookupEntity.Name))!
-          .GetMaxLength()
-        ?? throw new InvalidOperationException(
-               $"{typeof(TEntity).Name}.Name has no HasMaxLength, so its length cannot be validated.");
-
     private void EnsureNameFits(string name)
     {
-        var max = MaxNameLength();
+        var max = LookupModel.MaxNameLength(db, typeof(TEntity));
 
         if (name.Length > max)
         {
@@ -160,15 +148,15 @@ internal sealed class LookupHandler<TEntity> : ILookupHandler
     }
 
     /// <summary>
-    /// A lookup that live installations still point at cannot be removed — hiding it would leave
-    /// those installations showing a blank name.
+    /// A lookup that live rows still point at cannot be removed — hiding it would leave them
+    /// showing a blank name.
     /// </summary>
     private async Task EnsureNotInUseAsync(int id)
     {
-        if (await db.ApplicationInstallations.AnyAsync(descriptor.InUseBy(id)))
+        if (await descriptor.Usage.IsInUseAsync(db, id))
         {
             throw new ArgumentException(
-                "This item is still used by one or more installations and cannot be deleted.");
+                $"This item is still used by one or more {descriptor.Usage.UsedBy} and cannot be deleted.");
         }
     }
 }

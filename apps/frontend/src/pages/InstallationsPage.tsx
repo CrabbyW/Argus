@@ -17,6 +17,8 @@ import {
   TableHeader,
   TableHeaderCell,
   TableRow,
+  Tag,
+  TagGroup,
   Text,
   Title3,
   Tooltip,
@@ -27,39 +29,74 @@ import {
 import {
   AddRegular,
   ArrowClockwiseRegular,
+  ChevronDownRegular,
+  ChevronUpRegular,
   DeleteRegular,
   EditRegular,
   EyeRegular,
+  FilterRegular,
+  TextNumberFormatRegular,
 } from '@fluentui/react-icons';
 import { api } from '../api/client';
 import type { DataViewOutput, InstallationFilter, InstallationListItem } from '../api/types';
-import { useLookups } from '../hooks/useLookups';
+import { itemsOf, useLookups } from '../hooks/useLookups';
 import { useAppToast } from '../hooks/useAppToast';
 import { InstallationDialog } from '../components/InstallationDialog';
 import { InstallationDetailDialog } from '../components/InstallationDetailDialog';
 import { ConfirmDialog } from '../components/ConfirmDialog';
+import { useSheetStyles } from '../styles/sheetStyles';
 
 /**
- * Fluent's Table is `table-layout: fixed`, so column widths come from here and nowhere else.
- * Left to itself it gives eleven columns an equal eleventh of the container, which is narrower
- * than a Windows path — and a table cell does not clip, so the text runs across its neighbours.
- * The order matches the header row; the sum is the table's minimum width.
+ * Two column sets, because the grid has two jobs.
+ *
+ * `ids` is the default and is the source workbook's ApplicationInstalation sheet, column for
+ * column: the row's own Id followed by nothing but foreign keys. That is the roadplan's rule made
+ * visible — every shared value lives in a lookup and the fact table only points at them.
+ *
+ * `names` resolves those references for reading. The roadplan's success criteria are questions in
+ * words ("which machines serve paha.ga.local?"), and `2` does not answer one.
+ *
+ * Fluent's Table is `table-layout: fixed`, so these widths are the only thing setting column size.
+ * Id columns are narrow because a number is narrow; name columns need the room or they truncate.
  */
-const COLUMNS = [
-  { key: 'machine', width: 120 },
-  { key: 'application', width: 140 },
-  { key: 'stage', width: 85 },
-  { key: 'arch', width: 65 },
-  { key: 'dns', width: 145 },
-  { key: 'rootPath', width: 175 },
-  { key: 'physicalPath', width: 215 },
+const ID_COLUMNS = [
+  // The row-number gutter, as on a spreadsheet: position in the result, not the record's Id.
+  { key: 'rowNumber', width: 44 },
+  { key: 'id', width: 60 },
+  { key: 'machineId', width: 100 },
+  { key: 'appNameId', width: 100 },
+  { key: 'appStageNameId', width: 125 },
+  { key: 'processorArchitectureId', width: 165 },
+  { key: 'dnsEndpointId', width: 120 },
+  { key: 'rootPathId', width: 100 },
+  { key: 'physicalPathId', width: 120 },
   { key: 'tags', width: 150 },
   { key: 'valid', width: 170 },
   { key: 'active', width: 85 },
   { key: 'actions', width: 110 },
 ];
 
-const TABLE_MIN_WIDTH = COLUMNS.reduce((total, column) => total + column.width, 0);
+// Sized against the real seed values at 1600px — the longest of each (Data Exchange WebApi,
+// https://vipsprava.1220.cz, c:\inetpub\callcenter.rc0) fits without truncating, and the total
+// still leaves Active and Actions on screen rather than off the right edge.
+const NAME_COLUMNS = [
+  { key: 'rowNumber', width: 44 },
+  { key: 'id', width: 55 },
+  { key: 'machine', width: 125 },
+  { key: 'application', width: 165 },
+  { key: 'stage', width: 85 },
+  { key: 'arch', width: 55 },
+  { key: 'dns', width: 185 },
+  { key: 'rootPath', width: 145 },
+  { key: 'physicalPath', width: 185 },
+  { key: 'tags', width: 105 },
+  { key: 'valid', width: 140 },
+  { key: 'active', width: 80 },
+  { key: 'actions', width: 105 },
+];
+
+const widthOf = (columns: { width: number }[]) =>
+  columns.reduce((total, column) => total + column.width, 0);
 
 const useStyles = makeStyles({
   root: { display: 'flex', flexDirection: 'column', rowGap: '20px' },
@@ -72,11 +109,15 @@ const useStyles = makeStyles({
     backgroundColor: tokens.colorNeutralBackground1,
     border: `1px solid ${tokens.colorNeutralStroke2}`,
     borderRadius: tokens.borderRadiusMedium,
-    padding: '16px',
+    padding: '12px',
     display: 'flex',
     flexDirection: 'column',
-    rowGap: '12px',
+    rowGap: '10px',
   },
+  // The everyday row: search plus the facets that answer the roadplan's three headline questions.
+  // Everything rarer lives behind the "More filters" disclosure so the grid starts near the top.
+  filterBar: { display: 'flex', alignItems: 'flex-end', gap: '8px', flexWrap: 'wrap' },
+  searchField: { flexGrow: 1, minWidth: '220px' },
   // Every control gets a label, so a narrow window drops columns instead of jumbling them.
   filterGrid: {
     display: 'grid',
@@ -86,11 +127,22 @@ const useStyles = makeStyles({
   // Fluent gives Dropdown a 250px minimum, which is wider than a grid track — the control then
   // refuses to shrink and the whole row pushes out past the card's right edge.
   dropdown: { minWidth: 0 },
+  // A facet in the everyday row must not stretch to fill the leftover space; the search box does.
+  barDropdown: { minWidth: 0, width: '160px' },
   filterFooter: { display: 'flex', alignItems: 'center', gap: '16px', flexWrap: 'wrap' },
+  // Collapsed filters must never hide an active one, or the grid silently lies about its
+  // contents. Anything set behind the disclosure comes back out here as a dismissable chip.
+  chipRow: { display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' },
+  advancedPanel: {
+    borderTop: `1px solid ${tokens.colorNeutralStroke2}`,
+    paddingTop: '12px',
+    display: 'flex',
+    flexDirection: 'column',
+    rowGap: '12px',
+  },
 
   tableWrapper: { overflowX: 'auto', position: 'relative' },
-  // Narrower than this the columns would start colliding again, so the wrapper scrolls instead.
-  table: { minWidth: `${TABLE_MIN_WIDTH}px` },
+  // The sheet ruling itself comes from useSheetStyles; the width is set per view below.
   // A path is longer than any column that still leaves room for the other ten. Clip it and keep
   // the full value on hover.
   truncate: { overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' },
@@ -215,21 +267,29 @@ const SORTABLE: Record<string, string> = {
 
 export function InstallationsPage() {
   const styles = useStyles();
+  const sheet = useSheetStyles();
   const navigate = useNavigate();
   const location = useLocation();
   const toast = useAppToast();
   const [searchParams, setSearchParams] = useSearchParams();
   const { id: routeId } = useParams();
 
-  const { lookups, error: lookupsError, reload: reloadLookups } = useLookups();
+  const { lookups, metadata: lookupMetadata, error: lookupsError, reload: reloadLookups } = useLookups();
 
   const filter = useMemo(() => readFilter(searchParams), [searchParams]);
+
+  // Ids by default — that is the sheet. The names view is opt-in and lives in the URL like every
+  // other piece of grid state, so a link carries the view it was sent in.
+  const view = searchParams.get('view') === 'names' ? 'names' : 'ids';
+  const isIdView = view === 'ids';
+  const columns = isIdView ? ID_COLUMNS : NAME_COLUMNS;
 
   const [page, setPage] = useState(emptyPage);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [pendingDelete, setPendingDelete] = useState<InstallationListItem | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [showAdvanced, setShowAdvanced] = useState(false);
 
   // Typing stays local and is written to the URL on a delay, so the address bar (and history)
   // is not rewritten on every keystroke.
@@ -238,9 +298,17 @@ export function InstallationsPage() {
 
   const applyFilter = useCallback(
     (next: InstallationFilter, replace = false) => {
-      setSearchParams(writeFilter(next), { replace });
+      const params = writeFilter(next);
+
+      // writeFilter rebuilds the query string from the filter alone, which does not know about
+      // the view — without this, changing any facet would silently snap the grid back to Ids.
+      if (view === 'names') {
+        params.set('view', 'names');
+      }
+
+      setSearchParams(params, { replace });
     },
-    [setSearchParams],
+    [setSearchParams, view],
   );
 
   function patchFilter(patch: Partial<InstallationFilter>) {
@@ -317,22 +385,43 @@ export function InstallationsPage() {
     }
   }
 
-  function sortableHeader(column: string) {
+  /**
+   * `label` overrides the display text without changing the sort column — the Id view labels its
+   * columns as the workbook does (`MachineId`) while still sorting by the readable machine name,
+   * which is the only thing `InstallationService.ApplySort` accepts.
+   */
+  function sortableHeader(column: string, label?: string) {
     const isSorted = filter.sortBy === column;
     const direction = isSorted ? (filter.sortDirection === 'desc' ? 'descending' : 'ascending') : 'none';
 
     return (
-      <TableHeaderCell key={column} aria-sort={direction} className={styles.nowrap}>
+      <TableHeaderCell key={column} aria-sort={direction} className={sheet.headerCell}>
         <button
           type="button"
           className={styles.sortButton}
           onClick={() => toggleSort(column)}
           aria-label={`Sort by ${SORTABLE[column]}`}
         >
-          {SORTABLE[column]}
+          {label ?? SORTABLE[column]}
           {isSorted && <span aria-hidden>{filter.sortDirection === 'desc' ? '↓' : '↑'}</span>}
         </button>
       </TableHeaderCell>
+    );
+  }
+
+  /**
+   * A reference cell in the Id view. The number is the content; the resolved name is the hover
+   * text, so "what is 4?" is answerable without leaving the row.
+   *
+   * A missing optional reference renders as an empty cell rather than a dash — that is what a
+   * spreadsheet shows for no value, and both DnsEndpointId and PhysicalPathId are optional by
+   * the roadplan.
+   */
+  function idCell(id: number | null | undefined, name: string | null | undefined) {
+    return (
+      <TableCell className={sheet.idCell} title={name ?? undefined}>
+        {id ?? ''}
+      </TableCell>
     );
   }
 
@@ -342,11 +431,12 @@ export function InstallationsPage() {
     items: { id: number; name: string }[],
     selectedId: number | null | undefined,
     onSelect: (id: number | null) => void,
+    dropdownClass?: string,
   ) {
     return (
       <Field label={label}>
         <Dropdown
-          className={styles.dropdown}
+          className={dropdownClass ?? styles.dropdown}
           placeholder={placeholder}
           selectedOptions={selectedId ? [String(selectedId)] : ['']}
           value={items.find((item) => item.id === selectedId)?.name ?? ''}
@@ -367,6 +457,82 @@ export function InstallationsPage() {
     ? ''
     : String(filter.isActive);
 
+  function nameOf(kind: Parameters<typeof itemsOf>[1], id: number) {
+    return itemsOf(lookups, kind).find((item) => item.id === id)?.name ?? `#${id}`;
+  }
+
+  /**
+   * One entry per *collapsed* filter that is currently set. These render as dismissable chips
+   * next to the disclosure, so a filtered grid always shows why it is filtered even when the
+   * control that set it is out of sight. The four facets in the everyday row are excluded —
+   * their own dropdowns already display their state.
+   */
+  const advancedChips: { key: string; label: string; clear: () => void }[] = [];
+
+  if (filter.processorArchitectureId) {
+    advancedChips.push({
+      key: 'arch',
+      label: `Architecture: ${nameOf('processorarchitectures', filter.processorArchitectureId)}`,
+      clear: () => patchFilter({ processorArchitectureId: null }),
+    });
+  }
+  if (filter.rootPathId) {
+    advancedChips.push({
+      key: 'root',
+      label: `Root path: ${nameOf('rootpaths', filter.rootPathId)}`,
+      clear: () => patchFilter({ rootPathId: null }),
+    });
+  }
+  if (filter.physicalPathId) {
+    advancedChips.push({
+      key: 'ppath',
+      label: `Physical path: ${nameOf('physicalpaths', filter.physicalPathId)}`,
+      clear: () => patchFilter({ physicalPathId: null }),
+    });
+  }
+  if (filter.tagId) {
+    advancedChips.push({
+      key: 'tag',
+      label: `Tag: ${nameOf('tags', filter.tagId)}`,
+      clear: () => patchFilter({ tagId: null }),
+    });
+  }
+  if (filter.repositoryId) {
+    advancedChips.push({
+      key: 'repo',
+      label: `Repository: ${nameOf('apprepositories', filter.repositoryId)}`,
+      clear: () => patchFilter({ repositoryId: null }),
+    });
+  }
+  if (filter.isActive !== null && filter.isActive !== undefined) {
+    advancedChips.push({
+      key: 'active',
+      label: `Serving: ${filter.isActive ? 'Active' : 'Inactive'}`,
+      clear: () => patchFilter({ isActive: null }),
+    });
+  }
+  if (filter.validFrom) {
+    advancedChips.push({
+      key: 'from',
+      label: `Installed from: ${filter.validFrom}`,
+      clear: () => patchFilter({ validFrom: null }),
+    });
+  }
+  if (filter.validTo) {
+    advancedChips.push({
+      key: 'to',
+      label: `Installed to: ${filter.validTo}`,
+      clear: () => patchFilter({ validTo: null }),
+    });
+  }
+  if (filter.includeDisabled) {
+    advancedChips.push({
+      key: 'disabled',
+      label: 'Including decommissioned',
+      clear: () => patchFilter({ includeDisabled: false }),
+    });
+  }
+
   const dialogMode = routeId === 'new' ? 'create' : routeId ? 'edit' : null;
   const isDetailRoute = location.pathname.endsWith('/view');
 
@@ -378,6 +544,23 @@ export function InstallationsPage() {
           {page.totalCount} record{page.totalCount === 1 ? '' : 's'}
         </Text>
         <div className={styles.spacer} />
+        {/* The sheet shows references; people ask questions in names. Both, one click apart. */}
+        <Button
+          icon={<TextNumberFormatRegular />}
+          onClick={() => {
+            const params = new URLSearchParams(searchParams);
+
+            if (isIdView) {
+              params.set('view', 'names');
+            } else {
+              params.delete('view');
+            }
+
+            setSearchParams(params);
+          }}
+        >
+          {isIdView ? 'Show names' : 'Show Ids'}
+        </Button>
         <Button icon={<ArrowClockwiseRegular />} onClick={() => void load(filter)}>
           Refresh
         </Button>
@@ -403,8 +586,8 @@ export function InstallationsPage() {
       )}
 
       <div className={styles.filterCard}>
-        <div className={styles.filterGrid}>
-          <Field label="Search">
+        <div className={styles.filterBar}>
+          <Field label="Search" className={styles.searchField}>
             <Input
               placeholder="Machine, app, path, DNS, tags..."
               value={searchInput}
@@ -412,100 +595,141 @@ export function InstallationsPage() {
             />
           </Field>
 
-          {facet('Machine', 'All machines', lookups.machines, filter.machineId, (id) =>
-            patchFilter({ machineId: id }),
+          {/* These four carry the roadplan's headline questions — which machines serve
+              paha.ga.local, where RC0 of CallCenter runs, what else is on a given machine — so
+              they stay one click away. The rest is a click further. */}
+          {facet('Machine', 'All', itemsOf(lookups, 'machines'), filter.machineId, (id) =>
+            patchFilter({ machineId: id }), styles.barDropdown,
           )}
-          {facet('Application', 'All applications', lookups.appNames, filter.appNameId, (id) =>
-            patchFilter({ appNameId: id }),
+          {facet('Application', 'All', itemsOf(lookups, 'appnames'), filter.appNameId, (id) =>
+            patchFilter({ appNameId: id }), styles.barDropdown,
           )}
-          {facet('Stage', 'All stages', lookups.appStageNames, filter.appStageNameId, (id) =>
-            patchFilter({ appStageNameId: id }),
+          {facet('Stage', 'All', itemsOf(lookups, 'appstagenames'), filter.appStageNameId, (id) =>
+            patchFilter({ appStageNameId: id }), styles.barDropdown,
           )}
-          {/* The roadplan's headline question is "which machines serve paha.ga.local?" —
-              this facet answers it directly instead of relying on the search box. */}
-          {facet('DNS endpoint', 'All endpoints', lookups.dnsEndpoints, filter.dnsEndpointId, (id) =>
-            patchFilter({ dnsEndpointId: id }),
-          )}
-          {facet(
-            'Architecture',
-            'All architectures',
-            lookups.processorArchitectures,
-            filter.processorArchitectureId,
-            (id) => patchFilter({ processorArchitectureId: id }),
-          )}
-          {facet('Root path', 'All root paths', lookups.rootPaths, filter.rootPathId, (id) =>
-            patchFilter({ rootPathId: id }),
-          )}
-          {facet(
-            'Physical path',
-            'All physical paths',
-            lookups.physicalPaths,
-            filter.physicalPathId,
-            (id) => patchFilter({ physicalPathId: id }),
-          )}
-          {facet('Tag', 'All tags', lookups.tags, filter.tagId, (id) =>
-            patchFilter({ tagId: id }),
-          )}
-          {facet('Repository', 'All repositories', lookups.repositories, filter.repositoryId, (id) =>
-            patchFilter({ repositoryId: id }),
+          {facet('DNS endpoint', 'All', itemsOf(lookups, 'dnsendpoints'), filter.dnsEndpointId, (id) =>
+            patchFilter({ dnsEndpointId: id }), styles.barDropdown,
           )}
 
-          <Field label="Serving">
-            <Dropdown
-              className={styles.dropdown}
-              placeholder="Any"
-              selectedOptions={[activeValue]}
-              value={activeValue === '' ? 'Any' : activeValue === 'true' ? 'Active' : 'Inactive'}
-              onOptionSelect={(_, data) =>
-                patchFilter({ isActive: data.optionValue === '' ? null : data.optionValue === 'true' })
-              }
-            >
-              <Option value="">Any</Option>
-              <Option value="true">Active</Option>
-              <Option value="false">Inactive</Option>
-            </Dropdown>
-          </Field>
+          <Button
+            icon={<FilterRegular />}
+            iconPosition="before"
+            onClick={() => setShowAdvanced((open) => !open)}
+            aria-expanded={showAdvanced}
+          >
+            More filters{advancedChips.length > 0 ? ` (${advancedChips.length})` : ''}
+            {showAdvanced ? <ChevronUpRegular /> : <ChevronDownRegular />}
+          </Button>
 
-          {/* Matches on overlap, so an installation spanning the window counts even if it
-              started earlier. */}
-          <Field label="Installed from">
-            <Input
-              type="date"
-              value={filter.validFrom ?? ''}
-              onChange={(_, data) => patchFilter({ validFrom: data.value || null })}
-            />
-          </Field>
-
-          <Field label="Installed to">
-            <Input
-              type="date"
-              value={filter.validTo ?? ''}
-              onChange={(_, data) => patchFilter({ validTo: data.value || null })}
-            />
-          </Field>
-        </div>
-
-        <div className={styles.filterFooter}>
-          {/* Decommissioned rows are soft-deleted, so a past-date query cannot see them
-              without this. Off by default to keep the everyday grid clean. */}
-          <Checkbox
-            label="Include decommissioned"
-            checked={filter.includeDisabled ?? false}
-            onChange={(_, data) => patchFilter({ includeDisabled: Boolean(data.checked) })}
-          />
-          <div className={styles.spacer} />
           <Button
             appearance="subtle"
-            disabled={searchParams.toString() === ''}
+            // The view is not a filter, so it must not make Clear look actionable on its own.
+            disabled={writeFilter(filter).toString() === ''}
             onClick={() => {
               lastPushedSearch.current = '';
               setSearchInput('');
-              setSearchParams(new URLSearchParams());
+
+              // Clearing filters is not a request to change the view.
+              const kept = new URLSearchParams();
+              if (view === 'names') kept.set('view', 'names');
+
+              setSearchParams(kept);
             }}
           >
-            Clear filters
+            Clear
           </Button>
         </div>
+
+        {advancedChips.length > 0 && (
+          <div className={styles.chipRow}>
+            <TagGroup
+              onDismiss={(_, data) => {
+                advancedChips.find((chip) => chip.key === data.value)?.clear();
+              }}
+              aria-label="Active filters"
+            >
+              {advancedChips.map((chip) => (
+                <Tag key={chip.key} value={chip.key} dismissible size="small">
+                  {chip.label}
+                </Tag>
+              ))}
+            </TagGroup>
+          </div>
+        )}
+
+        {showAdvanced && (
+          <div className={styles.advancedPanel}>
+            <div className={styles.filterGrid}>
+              {facet(
+                'Architecture',
+                'All architectures',
+                itemsOf(lookups, 'processorarchitectures'),
+                filter.processorArchitectureId,
+                (id) => patchFilter({ processorArchitectureId: id }),
+              )}
+              {facet('Root path', 'All root paths', itemsOf(lookups, 'rootpaths'), filter.rootPathId, (id) =>
+                patchFilter({ rootPathId: id }),
+              )}
+              {facet(
+                'Physical path',
+                'All physical paths',
+                itemsOf(lookups, 'physicalpaths'),
+                filter.physicalPathId,
+                (id) => patchFilter({ physicalPathId: id }),
+              )}
+              {facet('Tag', 'All tags', itemsOf(lookups, 'tags'), filter.tagId, (id) =>
+                patchFilter({ tagId: id }),
+              )}
+              {facet('Repository', 'All repositories', itemsOf(lookups, 'apprepositories'), filter.repositoryId, (id) =>
+                patchFilter({ repositoryId: id }),
+              )}
+
+              <Field label="Serving">
+                <Dropdown
+                  className={styles.dropdown}
+                  placeholder="Any"
+                  selectedOptions={[activeValue]}
+                  value={activeValue === '' ? 'Any' : activeValue === 'true' ? 'Active' : 'Inactive'}
+                  onOptionSelect={(_, data) =>
+                    patchFilter({ isActive: data.optionValue === '' ? null : data.optionValue === 'true' })
+                  }
+                >
+                  <Option value="">Any</Option>
+                  <Option value="true">Active</Option>
+                  <Option value="false">Inactive</Option>
+                </Dropdown>
+              </Field>
+
+              {/* Matches on overlap, so an installation spanning the window counts even if it
+                  started earlier. */}
+              <Field label="Installed from">
+                <Input
+                  type="date"
+                  value={filter.validFrom ?? ''}
+                  onChange={(_, data) => patchFilter({ validFrom: data.value || null })}
+                />
+              </Field>
+
+              <Field label="Installed to">
+                <Input
+                  type="date"
+                  value={filter.validTo ?? ''}
+                  onChange={(_, data) => patchFilter({ validTo: data.value || null })}
+                />
+              </Field>
+            </div>
+
+            <div className={styles.filterFooter}>
+              {/* Decommissioned rows are soft-deleted, so a past-date query cannot see them
+                  without this. Off by default to keep the everyday grid clean. */}
+              <Checkbox
+                label="Include decommissioned"
+                checked={filter.includeDisabled ?? false}
+                onChange={(_, data) => patchFilter({ includeDisabled: Boolean(data.checked) })}
+              />
+            </div>
+          </div>
+        )}
       </div>
 
       <div className={styles.tableWrapper}>
@@ -517,66 +741,107 @@ export function InstallationsPage() {
 
         <Table
           size="small"
-          className={mergeClasses(styles.table, isLoading ? styles.dimmed : undefined)}
+          style={{ minWidth: `${widthOf(columns)}px` }}
+          className={mergeClasses(sheet.table, isLoading ? styles.dimmed : undefined)}
         >
           <colgroup>
-            {COLUMNS.map((column) => (
+            {columns.map((column) => (
               <col key={column.key} style={{ width: `${column.width}px` }} />
             ))}
           </colgroup>
 
           <TableHeader>
             <TableRow>
-              {sortableHeader('machineName')}
-              {sortableHeader('appName')}
-              {sortableHeader('appStageName')}
-              <TableHeaderCell className={styles.nowrap}>Arch</TableHeaderCell>
-              {sortableHeader('dnsName')}
-              {sortableHeader('rootPath')}
-              <TableHeaderCell className={styles.nowrap}>Physical path</TableHeaderCell>
-              <TableHeaderCell className={styles.nowrap}>Tags</TableHeaderCell>
+              {/* The gutter's corner cell, as on a sheet: no label, it numbers the rows. */}
+              <TableHeaderCell className={sheet.headerCell} aria-label="Row number" />
+              <TableHeaderCell className={sheet.headerCell}>ID</TableHeaderCell>
+
+              {isIdView ? (
+                <>
+                  {/* Header names are the workbook's, not prettier versions of them — this screen
+                      is the ApplicationInstalation sheet and should be recognisable as it. */}
+                  {sortableHeader('machineName', 'MachineId')}
+                  {sortableHeader('appName', 'AppNameId')}
+                  {sortableHeader('appStageName', 'AppStageNameId')}
+                  <TableHeaderCell className={sheet.headerCell}>ProcessorArchitectureId</TableHeaderCell>
+                  {sortableHeader('dnsName', 'DnsEndpointId')}
+                  {sortableHeader('rootPath', 'RootPathId')}
+                  <TableHeaderCell className={sheet.headerCell}>PhysicalPathId</TableHeaderCell>
+                </>
+              ) : (
+                <>
+                  {sortableHeader('machineName')}
+                  {sortableHeader('appName')}
+                  {sortableHeader('appStageName')}
+                  <TableHeaderCell className={sheet.headerCell}>Arch</TableHeaderCell>
+                  {sortableHeader('dnsName')}
+                  {sortableHeader('rootPath')}
+                  <TableHeaderCell className={sheet.headerCell}>Physical path</TableHeaderCell>
+                </>
+              )}
+
+              <TableHeaderCell className={sheet.headerCell}>Tags</TableHeaderCell>
               {sortableHeader('validFromDate')}
               {sortableHeader('isActive')}
-              <TableHeaderCell className={styles.nowrap}>Actions</TableHeaderCell>
+              <TableHeaderCell className={sheet.headerCell}>Actions</TableHeaderCell>
             </TableRow>
           </TableHeader>
 
           <TableBody>
             {page.items.length === 0 && !isLoading && (
               <TableRow>
-                <TableCell colSpan={11}>
+                <TableCell colSpan={columns.length}>
                   <span className={styles.muted}>No installations match the current filter.</span>
                 </TableCell>
               </TableRow>
             )}
 
-            {page.items.map((item) => (
+            {page.items.map((item, index) => (
               <TableRow key={item.id}>
-                <TableCell className={styles.truncate} title={item.machineName}>
-                  {item.machineName}
+                <TableCell className={sheet.gutterCell}>
+                  {((page.pageNumber || 1) - 1) * (page.pageSize || 25) + index + 1}
                 </TableCell>
-                <TableCell className={styles.truncate} title={item.appName}>
-                  {item.appName}
-                </TableCell>
-                <TableCell className={styles.truncate} title={item.appStageName}>
-                  {item.appStageName}
-                </TableCell>
-                <TableCell>{item.processorArchitecture}</TableCell>
-                <TableCell className={styles.truncate} title={item.dnsName ?? undefined}>
-                  {item.dnsName ?? <span className={styles.muted}>—</span>}
-                </TableCell>
-                <TableCell
-                  className={mergeClasses(styles.mono, styles.truncate)}
-                  title={item.rootPath}
-                >
-                  {item.rootPath}
-                </TableCell>
-                <TableCell
-                  className={mergeClasses(styles.mono, styles.truncate)}
-                  title={item.physicalPath ?? undefined}
-                >
-                  {item.physicalPath ?? <span className={styles.muted}>—</span>}
-                </TableCell>
+                <TableCell className={sheet.idCell}>{item.id}</TableCell>
+
+                {isIdView ? (
+                  <>
+                    {idCell(item.machineId, item.machineName)}
+                    {idCell(item.appNameId, item.appName)}
+                    {idCell(item.appStageNameId, item.appStageName)}
+                    {idCell(item.processorArchitectureId, item.processorArchitecture)}
+                    {idCell(item.dnsEndpointId, item.dnsName)}
+                    {idCell(item.rootPathId, item.rootPath)}
+                    {idCell(item.physicalPathId, item.physicalPath)}
+                  </>
+                ) : (
+                  <>
+                    <TableCell className={styles.truncate} title={item.machineName}>
+                      {item.machineName}
+                    </TableCell>
+                    <TableCell className={styles.truncate} title={item.appName}>
+                      {item.appName}
+                    </TableCell>
+                    <TableCell className={styles.truncate} title={item.appStageName}>
+                      {item.appStageName}
+                    </TableCell>
+                    <TableCell>{item.processorArchitecture}</TableCell>
+                    <TableCell className={styles.truncate} title={item.dnsName ?? undefined}>
+                      {item.dnsName ?? <span className={styles.muted}>—</span>}
+                    </TableCell>
+                    <TableCell
+                      className={mergeClasses(styles.mono, styles.truncate)}
+                      title={item.rootPath}
+                    >
+                      {item.rootPath}
+                    </TableCell>
+                    <TableCell
+                      className={mergeClasses(styles.mono, styles.truncate)}
+                      title={item.physicalPath ?? undefined}
+                    >
+                      {item.physicalPath ?? <span className={styles.muted}>—</span>}
+                    </TableCell>
+                  </>
+                )}
                 <TableCell title={item.tags.join(', ')}>
                   {item.tags.length === 0 ? (
                     <span className={styles.muted}>—</span>
@@ -665,6 +930,7 @@ export function InstallationsPage() {
         <InstallationDialog
           installationId={dialogMode === 'create' ? null : Number(routeId)}
           lookups={lookups}
+          lookupMetadata={lookupMetadata}
           onClose={() => navigate({ pathname: '/installations', search: searchParams.toString() })}
           onSaved={() => {
             toast.success(dialogMode === 'create' ? 'Installation created.' : 'Installation saved.');

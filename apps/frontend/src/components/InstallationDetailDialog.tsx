@@ -18,7 +18,6 @@ import {
 import { EditRegular } from '@fluentui/react-icons';
 import { api } from '../api/client';
 import type { InstallationDetail } from '../api/types';
-import { repositoryTypeNames } from '../api/types';
 
 const useStyles = makeStyles({
   grid: {
@@ -151,7 +150,7 @@ export function InstallationDetailDialog({ installationId, onClose, onEdit }: Pr
                     <ul className={styles.repos}>
                       {detail.appRepositories.map((repo) => (
                         <li key={repo.id}>
-                          {repositoryTypeNames[repo.repositoryType] ?? 'Unknown'} —{' '}
+                          {repo.repositoryTypeName ?? 'Unknown type'} —{' '}
                           <span className={styles.mono}>{repo.repositoryUrl}</span>
                         </li>
                       ))}
