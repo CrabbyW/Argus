@@ -115,7 +115,8 @@ VÝSLEDKY BRAN:
   [x] pnpm run lint ................... čisté
   [x] dotnet ef migrations list ....... jediná 20260730194553_InitialCreate
   [x] seed počty ...................... všech 13 tabulek přesně dle plánu,
-        InstallationRepositories = 7 (ne 8, jak tvrdil starý plan.txt)
+        InstallationRepositories = 7 (ne 8, jak tvrdil starý plan.txt -
+        dnes docs/historie/plan-normalizace-prekonany.txt)
   [x] Swagger InstallationUpsertDto ... jen Id (rootPathId, physicalPathId,
         tagIds, repositoryIds), ŽÁDNÁ jména - pravidlo "v UI dropdown,
         nikdy volný text" drží i na úrovni kontraktu

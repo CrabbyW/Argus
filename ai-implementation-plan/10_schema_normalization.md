@@ -11,7 +11,9 @@ not been touched and no longer compiles or talks to the API.** This plan takes t
 that half-state to a complete, verified implementation.
 
 This file supersedes `plan.txt`, which describes a migration strategy that no longer exists.
-See §0.
+See §0. Every `plan.txt` below refers to that file; it was moved out of the repository root on
+2026-08-03 and now lives at `docs/historie/plan-normalizace-prekonany.txt`, kept only as a record
+of the reasoning.
 
 ---
 

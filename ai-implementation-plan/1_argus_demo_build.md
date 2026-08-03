@@ -100,4 +100,7 @@ every phase below gets its own numbered sub-plan per `CLAUDE-planning-standards.
   `ai-implementation-plan/` at project root, which is used here. Flag if the other path is intended.
 - **Ambiguities to confirm before/at Phase 2:** whether `Tags` becomes its own table now or
   stays text (PHASE2 note), and whether `DnsEndpointId` is nullable (assumed yes).
-- Design docs: `argus ai plan.txt` (technical), `beginnerguide.txt`, `PREHLED-projektu-CZ.txt`.
+- Design docs as they were named at kickoff: `argus ai plan.txt` (technical),
+  `beginnerguide.txt`, `PREHLED-projektu-CZ.txt`. Only the last one still exists under that
+  name; the brief is `roadplan`, and the superseded normalization plan sits in
+  `docs/historie/`.
