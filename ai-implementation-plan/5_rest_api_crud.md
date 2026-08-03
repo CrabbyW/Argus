@@ -17,10 +17,11 @@ only try/catch business validation.
 - [x] `WebApiPoco/Auth/`: login request/response, current-user DTO
 - [x] `Mappers/InstallationMapper` — static entity→DTO conversions
 - [x] `Services/IInstallationService` + implementation (filter, sort, page, CRUD, soft delete)
-- [x] `Services/ILookupService` + implementation (all five lookups, one service)
+- [x] `Services/ILookupService` + implementation (all five lookups, one service) _(five at the
+      time; rewritten into the `Services/Lookups/` descriptor registry and grown to ten — plan 10 §10)_
 - [x] `Middleware/GlobalExceptionHandlerMiddleware` (500 + traceId, no leaked details)
 - [x] `InstallationsController` — GET list, GET by id, POST, PUT, DELETE
-- [x] `LookupsController` — CRUD over `{kind}` for all five lookups
+- [x] `LookupsController` — CRUD over `{kind}` for all five lookups _(ten kinds today)_
 - [x] `HealthController` — anonymous liveness + DB reachability probe
 - [x] Swagger/OpenAPI with a JWT bearer security definition
 - [x] Backend compiles clean (`dotnet build`, 0 warnings, 0 errors)

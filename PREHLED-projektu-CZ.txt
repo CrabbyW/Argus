@@ -10,8 +10,8 @@
  běží a je proklikaná.
 
  POZOR na sekci 1: vypisuje atributy instalace jako jeden seznam.
- Tak to v databázi NEVYPADÁ. Devět z nich jsou sdílené hodnoty a každá
- má vlastní tabulku (číselník); instalace na ně jen odkazuje přes ID.
+ Tak to v databázi NEVYPADÁ. Sdílené hodnoty mají každá vlastní tabulku
+ (číselník) - dnes jich je deset; instalace na ně jen odkazuje přes ID.
  Vlastní jsou instalaci jen datumy platnosti a příznaky.
  Podrobně: README.md, sekce "The data model".
 
@@ -28,8 +28,8 @@ a co musíš jako začátečník pochopit, než se pustíme do stavby.
 TEHDY ve složce NEBYL ŽÁDNÝ KÓD - byly tam jen tři textové soubory
 s poznámkami a pravidly. Popisovaly, CO se má postavit a JAK.
 
-DNES (2026-07-30) je dům postavený: NX monorepo, .NET 10 API s EF Core
-a migracemi, React frontend, 29 testů, CI. Spouštění je v README.md.
+DNES (2026-08-01) je dům postavený: NX monorepo, .NET 10 API s EF Core
+a migracemi, React frontend, 79 testů, CI. Spouštění je v README.md.
 
 Soubory, o kterých je řeč níže:
   - roadplan .................... zadání projektu (co má appka umět)

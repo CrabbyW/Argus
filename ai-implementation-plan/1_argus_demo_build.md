@@ -1,7 +1,9 @@
 # Plan: Argus – Demo Build (deploy-ready MVP skeleton)
 
 **Date:** 2026-07-28
-**Status:** `In Progress` — all code complete and building; only live-database verification outstanding (Phase 0 blocker).
+**Status:** `Complete` — 2026-08-01. Every phase is checked off and the stack has been verified
+against a live LocalDB and in a browser; see Phase 6. The one item left unchecked is container
+images, which `8_deploy_packaging.md` records as deliberately out of scope.
 **Description:** Build project **Argus**, a deploy-ready demo of an installation-inventory
 web app ("where is what installed"). The goal is a **functionally complete, deployable
 skeleton** — every feature works end-to-end (UI → API → EF Core → MSSQL and back), the
@@ -39,10 +41,15 @@ every phase below gets its own numbered sub-plan per `CLAUDE-planning-standards.
 - [x] Create sub-plan `3_nx_monorepo_skeleton.md`
 
 ### Phase 2 — Backend data layer (the core design)
-- [x] Define EF Core entities from the normalized model (Machines, Applications, AppStages,
-      ProcessorArchitectures, DnsEndpoints, Installations, AppRepositories, ApplicationUser)
+- [x] Define EF Core entities from the normalized model _(the five lookups planned here grew to
+      ten on 2026-07-30/31 and the entities were renamed — `Machines`, `AppNames`, `AppStageNames`,
+      `ProcessorArchitectures`, `DnsEndpoints`, `RootPaths`, `PhysicalPaths`, `Tags`,
+      `AppRepositories`, `RepositoryTypes`, plus `ApplicationInstallations`, two link tables and
+      `ApplicationUser`; see plan 10)_
 - [x] Add `IEntityTypeConfiguration<T>` per entity; DbContext wiring
-- [x] Create the FIRST migration; add small seed data _(created + seeder written; **applying** it to a live DB is blocked with Phase 0)_
+- [x] Create the FIRST migration; add small seed data _(the original two migrations were collapsed
+      into `InitialCreate` during the 2026-07-30 normalization and applied to a live LocalDB on
+      2026-07-31)_
 - [x] Create sub-plan `4_ef_core_model_and_migration.md`
 
 ### Phase 3 — REST API (CRUD)
@@ -68,7 +75,10 @@ every phase below gets its own numbered sub-plan per `CLAUDE-planning-standards.
 - [x] Filtering/sorting/pagination end-to-end
 - [x] LocalDB run path + config externalized; README run steps
 - [x] Create sub-plan `8_deploy_packaging.md`
-- [ ] Verify the running stack end-to-end _(blocked with Phase 0)_
+- [x] Verify the running stack end-to-end _(unblocked once the Windows machine had the .NET SDK:
+      API exercised 2026-07-29, browser click-through 2026-07-30 (`9_frontend_ux_overhaul_and_fixes.md`),
+      re-verified against the normalized schema 2026-07-31 (`10_schema_normalization.md` §9) and
+      against the Id/name grid 2026-08-01 (`11_main_grid_as_the_source_sheet.md` §5))_
 
 ---
 

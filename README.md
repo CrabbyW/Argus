@@ -84,10 +84,10 @@ The UI has three sections, each with its own address:
 
 | Address | What it is |
 |---|---|
-| `/installations` | The grid. Filters, sorting and paging all live in the query string, so a filtered view can be bookmarked and shared. |
-| `/installations/:id/view` | Read-only detail — physical path, repositories, created/modified. |
-| `/lookups/:kind` | The five lookup tables. Renaming here updates every installation at once. |
-| `/repositories` | Source-control locations, maintained per application. |
+| `/installations` | The grid — the `ApplicationInstalation` sheet. Shows foreign keys by default, `?view=names` resolves them. Filters, sorting and paging all live in the query string, so a filtered view can be bookmarked and shared. |
+| `/installations/:id/view` | Read-only detail — physical path, tags, repositories, created/modified. |
+| `/lookups/:kind` | The lookup tables. Renaming here updates every installation at once. |
+| `/repositories` | Source-control locations, linked many-to-many to installations. |
 
 `pnpm run dev` starts both apps at once.
 
@@ -130,12 +130,13 @@ PhysicalPaths ─────────┘     DnsEndpointId and PhysicalPathI
 
 Tags ──< InstallationTags >────────┐
 AppRepositories ──< InstallationRepositories >──┴──> ApplicationInstallations
+     └──> RepositoryTypes            (svn / git / bitbucket — a lookup, not an enum)
 
 ApplicationUser                    (login)
 ```
 
-Thirteen tables: eight plain lookups, `AppRepositories`, the installation itself, two link
-tables and the user.
+Fourteen tables: ten lookups (the eight above plus `AppRepositories` and `RepositoryTypes`), the
+installation itself, two link tables and the user.
 
 The installation row holds **no names of its own** — every shared value is an `Id` into a lookup
 that must already exist. Its own columns are `IsActive`, `ValidFromDate`, `ValidToDate`,
@@ -206,6 +207,10 @@ row that references them. `Tags` became `Tags` + `InstallationTags` on 2026-07-3
 longer free text — and `AppRepositories` moved from the application onto the installation as a
 many-to-many link. See `ai-implementation-plan/10_schema_normalization.md`.
 
+One value went further than the roadplan asked: `RepositoryType`, which the roadplan lists as a
+column of `AppRepositories`, is a lookup table of its own (2026-07-31). It is a shared value like
+any other, and the rule the whole model rests on does not have an exception for short strings.
+
 ### Known deviation from `roadplan`
 
 **Database authentication.** The roadplan asks for SQL username/password authentication. That
@@ -224,6 +229,11 @@ Re-verified on 2026-07-31 against the normalized schema: build, 68 tests, `tsc` 
 the database rebuilt from `InitialCreate` to the exact seed counts, and the `10_schema_normalization.md`
 §6 walkthrough run end to end. It found one bug — deep-linked filters were dropped on load — which is
 fixed and recorded in that file's §9.
+
+Verified again on 2026-08-01 after the grid was rebuilt to mirror the source sheet: **79 tests**
+green, both the Id and the name view screenshotted against
+`docs/reference/zdrojova-tabulka-4-applicationinstalation.png`. See
+`ai-implementation-plan/11_main_grid_as_the_source_sheet.md` §5.
 
 ---
 

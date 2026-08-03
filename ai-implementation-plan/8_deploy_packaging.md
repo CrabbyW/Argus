@@ -11,7 +11,7 @@ end-to-end filtering/sorting/paging).
 
 ## Checklist
 
-- [x] Lookup management screens for all five lookups (`LookupsPage.tsx` + `LookupsController`)
+- [x] Lookup management screens for all five lookups (`LookupsPage.tsx` + `LookupsController`) _(ten today — plan 10)_
 - [x] Filtering / sorting / pagination end-to-end (UI → filter DTO → EF query → paged response)
 - [x] MSSQL running locally on SQL Server LocalDB _(replaced `docker-compose.yml` on 2026-07-29 — see `2_environment_setup.md`)_
 - [x] Config externalized: `appsettings*.json` and `secrets/` gitignored, `appsettings.Example.json` committed

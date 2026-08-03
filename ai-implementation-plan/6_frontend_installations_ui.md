@@ -15,10 +15,11 @@ dropdown rather than free text — the UI enforcement of the normalized model.
 - [x] `api/types.ts` mirroring the backend DTOs
 - [x] `api/client.ts` — typed fetch wrapper, bearer token, `ApiError` from `ErrorResponse`
 - [x] `auth/AuthContext.tsx` — token in localStorage, revalidated against `/auth/me` on boot
-- [x] `hooks/useLookups.ts` — loads all five lookups in parallel
+- [x] `hooks/useLookups.ts` — loads all five lookups in parallel _(ten today, and the kind list
+      now comes from `GET /api/lookups` rather than being hard-coded here)_
 - [x] `pages/InstallationsPage.tsx` — grid, debounced search, 3 facet filters, sortable columns, paging, delete
 - [x] `components/InstallationDialog.tsx` — create/edit form, all lookups as dropdowns
-- [x] `pages/LookupsPage.tsx` — management screens for all five lookups (Phase 6 item, done here)
+- [x] `pages/LookupsPage.tsx` — management screens for all five lookups (Phase 6 item, done here) _(ten today)_
 - [x] `App.tsx` shell with tab navigation and sign-out
 - [x] `tsc -b && vite build` passes clean
 
