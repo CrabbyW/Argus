@@ -162,3 +162,22 @@ seeded account.
 `msfadmin` / `msfadmin`, confirmed by signing in. It was already what `appsettings.Development.json`
 carried — the 2026-07-31 rebuild seeded from that config — so nothing had to be reset. What changed
 is that it is now changeable from the app instead of only in SSMS.
+
+---
+
+## 5. Visual check — 2026-08-03
+
+Screenshotted headless at 1600×1000, signed in, in **both themes** (`prefers-color-scheme`
+emulated for the light one). The screen reads as the rest of the app: ruled sheet, filled header
+band, Id column narrow and right-aligned, `Active` / `Disabled` as tinted badges, and the row for
+the signed-in account carries a `you` badge with its disable button greyed out — the self-guard
+visible before it is hit rather than only as a 400 afterwards.
+
+The full-width table with one flexible column (`Display name` here, `Description` on Lookups) is
+the house style, not an oversight — the two screens were compared side by side.
+
+**Harness note.** The CDP harness had to be rebuilt, and Node's built-in `WebSocket` cannot drive
+Chrome DevTools: it negotiates `permessage-deflate`, which the DevTools server does not honour, so
+frames are sent and nothing ever comes back — it hangs rather than erroring. The scratchpad script
+uses a hand-rolled client that offers no extensions. Worth knowing before anyone burns an hour on
+it again.
