@@ -29,18 +29,22 @@ public class UsersController : ControllerBase
         this.userService = userService;
     }
 
-    [HttpGet]
-    [EndpointName("Users_GetUsers")]
+    /// <summary>
+    /// A read, sent as a POST: what is being asked for travels in the body, not in the query
+    /// string.
+    /// </summary>
+    [HttpPost("search")]
+    [EndpointName("Users_SearchUsers")]
     [ProducesResponseType(typeof(ApiResponse<IReadOnlyList<UserDto>>), StatusCodes.Status200OK)]
-    public async Task<IActionResult> GetUsers([FromQuery] bool includeDisabled = false)
+    public async Task<IActionResult> SearchUsers([FromBody] UserListRequestDto request)
     {
-        var users = await userService.GetAllAsync(includeDisabled);
+        var users = await userService.GetAllAsync(request.IncludeDisabled);
 
         return Ok(new ApiResponse<IReadOnlyList<UserDto>> { Success = true, Data = users });
     }
 
-    [HttpGet("{id:int}")]
-    [EndpointName("Users_GetUserById")]
+    [HttpPost("{id:int}/read")]
+    [EndpointName("Users_ReadUserById")]
     [ProducesResponseType(typeof(ApiResponse<UserDto>), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ErrorResponse), StatusCodes.Status404NotFound)]
     public async Task<IActionResult> GetUserById(int id)

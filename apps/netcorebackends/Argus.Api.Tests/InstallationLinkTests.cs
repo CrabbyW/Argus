@@ -304,10 +304,49 @@ public class InstallationLinkTests
         await using (var db = testDb.NewContext())
         {
             var page = await new InstallationService(db).GetInstallationsAsync(
-                new InstallationFilterDto { TagId = prodId });
+                new InstallationFilterDto { TagIds = { prodId } });
 
             Assert.Equal(1, page.TotalCount);
             Assert.Equal(new[] { "prod" }, page.Items[0].Tags.ToArray());
+        }
+    }
+
+    /// <summary>
+    /// Tags are the one multi-value facet, and several of them are matched with OR: picking a
+    /// second tag widens the result rather than narrowing it, which is what selecting two entries
+    /// in a list looks like. An installation carrying both must still appear once.
+    /// </summary>
+    [Fact]
+    public async Task Filtering_by_several_tags_returns_installations_carrying_any_of_them()
+    {
+        using var testDb = TestDb.CreateSeeded();
+
+        int prodId;
+
+        await using (var db = testDb.NewContext())
+        {
+            prodId = await TagIdAsync(db, "prod");
+            var otherPath = await TestDb.RootPathIdAsync(db, "/callcenter.rc0");
+
+            // One row tagged "web", one tagged "prod", and one carrying both. Each differs in the
+            // machine/app/stage/root-path key, which is unique.
+            await new InstallationService(db).CreateInstallationAsync(
+                Deployment(tagIds: new List<int> { TestDb.TagWeb }));
+
+            await new InstallationService(db).CreateInstallationAsync(
+                Deployment(rootPathId: otherPath, tagIds: new List<int> { prodId }));
+
+            await new InstallationService(db).CreateInstallationAsync(
+                Deployment(stageId: TestDb.StageRc0, tagIds: new List<int> { TestDb.TagWeb, prodId }));
+        }
+
+        await using (var db = testDb.NewContext())
+        {
+            var page = await new InstallationService(db).GetInstallationsAsync(
+                new InstallationFilterDto { TagIds = { TestDb.TagWeb, prodId } });
+
+            // All three: two match one tag each, the third matches both but is still one row.
+            Assert.Equal(3, page.TotalCount);
         }
     }
 

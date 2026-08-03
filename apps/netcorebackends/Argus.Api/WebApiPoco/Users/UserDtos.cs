@@ -1,4 +1,5 @@
 using System.ComponentModel.DataAnnotations;
+using Argus.Api.WebApiPoco.Common;
 
 namespace Argus.Api.WebApiPoco.Users;
 
@@ -19,6 +20,16 @@ public class UserDto
     public DateTime CreatedUtc { get; set; }
 
     public DateTime? LastLoginUtc { get; set; }
+}
+
+/// <summary>
+/// The body of the users read. Its one criterion used to be a query parameter; it travels in the
+/// body now, alongside the URL the screen was on.
+/// </summary>
+public class UserListRequestDto : ReadRequestDto
+{
+    /// <summary>Include soft-deleted users, which are hidden by default.</summary>
+    public bool IncludeDisabled { get; set; }
 }
 
 /// <summary>

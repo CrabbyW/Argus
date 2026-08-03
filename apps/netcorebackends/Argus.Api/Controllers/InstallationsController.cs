@@ -22,11 +22,14 @@ public class InstallationsController : ControllerBase
         this.installationService = installationService;
     }
 
-    [HttpGet]
-    [EndpointName("Installations_GetInstallations")]
+    /// <summary>
+    /// A read, sent as a POST: the filter travels in the body, not in the query string.
+    /// </summary>
+    [HttpPost("search")]
+    [EndpointName("Installations_SearchInstallations")]
     [ProducesResponseType(typeof(ApiResponse<DataViewOutput<InstallationListItemDto>>), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ErrorResponse), StatusCodes.Status401Unauthorized)]
-    public async Task<IActionResult> GetInstallations([FromQuery] InstallationFilterDto filter)
+    public async Task<IActionResult> SearchInstallations([FromBody] InstallationFilterDto filter)
     {
         var result = await installationService.GetInstallationsAsync(filter);
 
@@ -37,8 +40,8 @@ public class InstallationsController : ControllerBase
         });
     }
 
-    [HttpGet("{id:int}")]
-    [EndpointName("Installations_GetInstallationById")]
+    [HttpPost("{id:int}/read")]
+    [EndpointName("Installations_ReadInstallationById")]
     [ProducesResponseType(typeof(ApiResponse<InstallationDetailDto>), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ErrorResponse), StatusCodes.Status404NotFound)]
     public async Task<IActionResult> GetInstallationById(int id)

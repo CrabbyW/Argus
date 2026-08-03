@@ -180,8 +180,8 @@ export interface InstallationFilter {
   dnsEndpointId?: number | null;
   rootPathId?: number | null;
   physicalPathId?: number | null;
-  /** Single tag: every other facet is one Id, and a list would need an AND/OR decision. */
-  tagId?: number | null;
+  /** The one multi-value facet. Matched with OR: any of these tags is a hit. */
+  tagIds?: number[];
   /** Single repository, for the same reason as `tagId`. */
   repositoryId?: number | null;
   isActive?: boolean | null;

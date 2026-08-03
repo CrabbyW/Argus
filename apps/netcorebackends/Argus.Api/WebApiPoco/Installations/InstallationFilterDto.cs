@@ -23,13 +23,17 @@ public class InstallationFilterDto : DataViewFilterBase<InstallationListItemDto>
     public int? PhysicalPathId { get; set; }
 
     /// <summary>
-    /// Single tag, not a list: every other facet is one Id, and a list would need array
-    /// query-string binding plus an AND/OR decision nobody has made. Multi-select is a
-    /// clean follow-up if it is ever wanted.
+    /// The one facet that takes several values. Tags are the field where asking about more than
+    /// one at a time is the normal question ("web or service"), and now that the filter travels
+    /// in a POST body a list needs no query-string array binding.
+    ///
+    /// Matching is OR: an installation matches when it carries <em>any</em> of these tags. AND
+    /// would ask a different question — "carries all of them" — and would make each further tag
+    /// narrow the result, which is not what picking a second tag in a list looks like.
     /// </summary>
-    public int? TagId { get; set; }
+    public List<int> TagIds { get; set; } = new();
 
-    /// <summary>Single repository, for the same reason as <see cref="TagId"/>.</summary>
+    /// <summary>Single repository: one repository is one answer, unlike a set of tags.</summary>
     public int? RepositoryId { get; set; }
 
     public bool? IsActive { get; set; }

@@ -33,23 +33,27 @@ public class LookupsController : ControllerBase
     /// <summary>
     /// Every kind and how to render it. Deliberately the first call the lookup screen makes: the
     /// tabs, the form fields and the name-length limits all come from here rather than from a copy
-    /// kept in the frontend.
+    /// kept in the frontend. A read, so it is sent as a POST like every other read in this API.
     /// </summary>
-    [HttpGet]
-    [EndpointName("Lookups_GetLookupMetadata")]
+    [HttpPost("search")]
+    [EndpointName("Lookups_SearchLookupMetadata")]
     [ProducesResponseType(typeof(ApiResponse<IReadOnlyList<LookupMetadataDto>>), StatusCodes.Status200OK)]
-    public IActionResult GetLookupMetadata() =>
+    public IActionResult SearchLookupMetadata([FromBody] ReadRequestBody? request) =>
         Ok(new ApiResponse<IReadOnlyList<LookupMetadataDto>>
         {
             Success = true,
             Data = lookupService.GetMetadata()
         });
 
-    [HttpGet("{kind}")]
-    [EndpointName("Lookups_GetLookupItems")]
+    /// <summary>
+    /// A read, sent as a POST. The route carries `/search` because `POST /lookups/{kind}` is
+    /// already how a lookup value is created.
+    /// </summary>
+    [HttpPost("{kind}/search")]
+    [EndpointName("Lookups_SearchLookupItems")]
     [ProducesResponseType(typeof(ApiResponse<IReadOnlyList<LookupItemDto>>), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ErrorResponse), StatusCodes.Status400BadRequest)]
-    public async Task<IActionResult> GetLookupItems(string kind)
+    public async Task<IActionResult> SearchLookupItems(string kind, [FromBody] ReadRequestBody? request)
     {
         if (!TryParseKind(kind, out var parsed, out var error))
         {
@@ -61,8 +65,8 @@ public class LookupsController : ControllerBase
         return Ok(new ApiResponse<IReadOnlyList<LookupItemDto>> { Success = true, Data = items });
     }
 
-    [HttpGet("{kind}/{id:int}")]
-    [EndpointName("Lookups_GetLookupItemById")]
+    [HttpPost("{kind}/{id:int}/read")]
+    [EndpointName("Lookups_ReadLookupItemById")]
     [ProducesResponseType(typeof(ApiResponse<LookupItemDto>), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ErrorResponse), StatusCodes.Status400BadRequest)]
     [ProducesResponseType(typeof(ErrorResponse), StatusCodes.Status404NotFound)]

@@ -1,25 +1,16 @@
-import { StrictMode, useEffect, useState } from 'react';
+import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { BrowserRouter } from 'react-router-dom';
 import { FluentProvider, webDarkTheme, webLightTheme } from '@fluentui/react-components';
 import { App } from './App';
 import { AuthProvider } from './auth/AuthContext';
 import { ErrorBoundary } from './components/ErrorBoundary';
+import { ThemeProvider, useTheme } from './theme/ThemeContext';
 import './index.css';
 
-const DARK_QUERY = '(prefers-color-scheme: dark)';
-
-/** Follows the OS setting; Fluent needs the theme object, so a media query alone will not do. */
+/** Fluent needs the theme object, so the boolean from ThemeProvider is resolved here. */
 function ThemedApp() {
-  const [isDark, setIsDark] = useState(() => window.matchMedia(DARK_QUERY).matches);
-
-  useEffect(() => {
-    const media = window.matchMedia(DARK_QUERY);
-    const onChange = (event: MediaQueryListEvent) => setIsDark(event.matches);
-
-    media.addEventListener('change', onChange);
-    return () => media.removeEventListener('change', onChange);
-  }, []);
+  const { isDark } = useTheme();
 
   return (
     <FluentProvider theme={isDark ? webDarkTheme : webLightTheme}>
@@ -42,6 +33,8 @@ if (!container) {
 
 createRoot(container).render(
   <StrictMode>
-    <ThemedApp />
+    <ThemeProvider>
+      <ThemedApp />
+    </ThemeProvider>
   </StrictMode>,
 );

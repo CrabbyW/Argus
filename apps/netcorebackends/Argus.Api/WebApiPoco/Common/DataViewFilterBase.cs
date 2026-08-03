@@ -3,12 +3,14 @@ namespace Argus.Api.WebApiPoco.Common;
 /// <summary>
 /// Base for every list filter: paging, sorting and free-text search.
 /// </summary>
-public abstract class DataViewFilterBase<T>
+public abstract class DataViewFilterBase<T> : ReadRequestDto
 {
     private const int MaxPageSize = 200;
 
     private int pageNumber = 1;
-    private int pageSize = 25;
+
+    /// <summary>Matches the grid's own default, so a caller that omits it gets the same page.</summary>
+    private int pageSize = 75;
 
     /// <summary>1-based page number.</summary>
     public int PageNumber

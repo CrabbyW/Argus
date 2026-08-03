@@ -34,10 +34,21 @@ export class ApiError extends Error {
   }
 }
 
+/**
+ * The token lives in `sessionStorage`, not `localStorage`: closing the browser must end the
+ * session no matter what, so reopening Argus always starts at the sign-in screen. Within a
+ * tab it survives reloads and navigation, and the server's own 8-hour token lifetime still
+ * ends a session that stays open all day.
+ *
+ * A token left behind by an earlier `localStorage` build is dropped on load — otherwise it
+ * would sit there unused and outlive every session it was supposed to be scoped to.
+ */
+localStorage.removeItem(TOKEN_STORAGE_KEY);
+
 export const tokenStorage = {
-  get: () => localStorage.getItem(TOKEN_STORAGE_KEY),
-  set: (token: string) => localStorage.setItem(TOKEN_STORAGE_KEY, token),
-  clear: () => localStorage.removeItem(TOKEN_STORAGE_KEY),
+  get: () => sessionStorage.getItem(TOKEN_STORAGE_KEY),
+  set: (token: string) => sessionStorage.setItem(TOKEN_STORAGE_KEY, token),
+  clear: () => sessionStorage.removeItem(TOKEN_STORAGE_KEY),
 };
 
 let unauthorizedHandler: (() => void) | null = null;
@@ -101,16 +112,48 @@ function toQueryString(filter: InstallationFilter): string {
   return query ? `?${query}` : '';
 }
 
+/**
+ * A read sent as a POST: criteria in the body, never in the query string.
+ *
+ * `requestUrl` goes with them. Once the criteria move into the body every search shares one
+ * address — `POST /api/installations/search` — and the server's action log would record that
+ * same line whatever was asked for. The full address of the equivalent request is therefore
+ * carried in the payload, so the log keeps saying which search was run.
+ */
+function read<T>(
+  path: string,
+  body: Record<string, unknown> = {},
+  /**
+   * What this read is, as an address: the resource plus its criteria, which is what the log is
+   * for. Defaults to the posted path — pass it explicitly wherever that path is a `/search`
+   * endpoint, since `/installations/search` names the mechanism and not the question.
+   */
+  describedAs = path,
+): Promise<T> {
+  return request<T>(path, {
+    method: 'POST',
+    body: JSON.stringify({
+      ...body,
+      requestUrl: `${window.location.origin}/api${describedAs}`,
+    }),
+  });
+}
+
 export const api = {
   login: (payload: LoginRequest) =>
     request<LoginResponse>('/auth/login', { method: 'POST', body: JSON.stringify(payload) }),
 
-  getCurrentUser: () => request<CurrentUser>('/auth/me'),
+  getCurrentUser: () => read<CurrentUser>('/auth/me'),
 
   getInstallations: (filter: InstallationFilter) =>
-    request<DataViewOutput<InstallationListItem>>(`/installations${toQueryString(filter)}`),
+    read<DataViewOutput<InstallationListItem>>(
+      '/installations/search',
+      { ...filter },
+      `/installations${toQueryString(filter)}`,
+    ),
 
-  getInstallation: (id: number) => request<InstallationDetail>(`/installations/${id}`),
+  getInstallation: (id: number) =>
+    read<InstallationDetail>(`/installations/${id}/read`, {}, `/installations/${id}`),
 
   createInstallation: (payload: InstallationUpsert) =>
     request<InstallationDetail>('/installations', {
@@ -128,9 +171,10 @@ export const api = {
     request<boolean>(`/installations/${id}`, { method: 'DELETE' }),
 
   /** Every lookup kind and how to render it. The Lookups screen starts here. */
-  getLookupMetadata: () => request<LookupMetadata[]>('/lookups'),
+  getLookupMetadata: () => read<LookupMetadata[]>('/lookups/search', {}, '/lookups'),
 
-  getLookup: (kind: LookupKind) => request<LookupItem[]>(`/lookups/${kind}`),
+  getLookup: (kind: LookupKind) =>
+    read<LookupItem[]>(`/lookups/${kind}/search`, {}, `/lookups/${kind}`),
 
   createLookupItem: (kind: LookupKind, payload: LookupUpsert) =>
     request<LookupItem>(`/lookups/${kind}`, { method: 'POST', body: JSON.stringify(payload) }),
@@ -158,7 +202,12 @@ export const api = {
       params.set('appNameId', String(filter.appNameId));
     }
     const query = params.toString();
-    return request<AppRepository[]>(`/apprepositories${query ? `?${query}` : ''}`);
+
+    return read<AppRepository[]>(
+      '/apprepositories/search',
+      { installationId: filter.installationId ?? null, appNameId: filter.appNameId ?? null },
+      `/apprepositories${query ? `?${query}` : ''}`,
+    );
   },
 
   createRepository: (payload: AppRepositoryUpsert) =>
@@ -181,7 +230,11 @@ export const api = {
    * query — without it there would be no way to restore one short of editing the database.
    */
   getUsers: (includeDisabled = false) =>
-    request<User[]>(`/users${includeDisabled ? '?includeDisabled=true' : ''}`),
+    read<User[]>(
+      '/users/search',
+      { includeDisabled },
+      `/users${includeDisabled ? '?includeDisabled=true' : ''}`,
+    ),
 
   createUser: (payload: UserUpsert) =>
     request<User>('/users', { method: 'POST', body: JSON.stringify(payload) }),
