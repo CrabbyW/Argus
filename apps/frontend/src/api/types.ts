@@ -226,3 +226,23 @@ export interface LookupMetadata {
   hasSortOrder: boolean;
   hasLoadBalancer: boolean;
 }
+
+/**
+ * An account that can sign in. Mirrors `UserDto`, which carries no hash and no salt — the only
+ * direction a password ever travels is in, through `setUserPassword`.
+ */
+export interface User {
+  id: number;
+  username: string;
+  displayName: string;
+  isEnabled: boolean;
+  createdUtc: string;
+  lastLoginUtc: string | null;
+}
+
+export interface UserUpsert {
+  username: string;
+  displayName: string;
+  /** Required when creating. Ignored by the server on update — see `12_user_management.md`. */
+  password?: string;
+}

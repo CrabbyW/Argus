@@ -17,6 +17,7 @@ import { LoginPage } from './pages/LoginPage';
 import { InstallationsPage } from './pages/InstallationsPage';
 import { LookupsPage } from './pages/LookupsPage';
 import { RepositoriesPage } from './pages/RepositoriesPage';
+import { UsersPage } from './pages/UsersPage';
 
 const useStyles = makeStyles({
   shell: { minHeight: '100vh', backgroundColor: tokens.colorNeutralBackground2 },
@@ -50,6 +51,7 @@ const useStyles = makeStyles({
 function activeTab(pathname: string): string {
   if (pathname.startsWith('/lookups')) return 'lookups';
   if (pathname.startsWith('/repositories')) return 'repositories';
+  if (pathname.startsWith('/users')) return 'users';
   return 'installations';
 }
 
@@ -106,6 +108,7 @@ export function App() {
           <Tab value="installations">Installations</Tab>
           <Tab value="lookups">Lookups</Tab>
           <Tab value="repositories">Repositories</Tab>
+          <Tab value="users">Users</Tab>
         </TabList>
 
         <div className={styles.spacer} />
@@ -134,6 +137,7 @@ export function App() {
           <Route path="/lookups" element={<LookupsPage />} />
           <Route path="/lookups/:kind" element={<LookupsPage />} />
           <Route path="/repositories" element={<RepositoriesPage />} />
+          <Route path="/users" element={<UsersPage />} />
           <Route path="*" element={<NotFoundPage />} />
         </Routes>
       </main>

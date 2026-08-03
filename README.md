@@ -69,8 +69,8 @@ Sign in as **`msfadmin`** (the username `DbSeeder` creates) with whatever you pu
 `Seed:AdminPassword`. Two things about that password:
 
 - **`DbSeeder` only seeds a user when the table is empty.** Once the database exists, editing
-  `Seed:AdminPassword` does nothing — the seeder skips the whole step. To change the password you
-  have to delete the row from `ApplicationUsers` and restart the API.
+  `Seed:AdminPassword` does nothing — the seeder skips the whole step. Change the password on the
+  **Users** screen instead; that is what it is there for.
 - **It is a demo credential.** Change it before this is reachable by anyone but you, and see the
   pre-deployment checklist below.
 
@@ -80,7 +80,7 @@ Sign in as **`msfadmin`** (the username `DbSeeder` creates) with whatever you pu
 `Server=localhost,1433;Database=Argus;User Id=sa;Password=...;TrustServerCertificate=True;`.
 Nothing else changes; the migrations and the code are provider-identical.
 
-The UI has three sections, each with its own address:
+The UI has these sections, each with its own address:
 
 | Address | What it is |
 |---|---|
@@ -88,6 +88,7 @@ The UI has three sections, each with its own address:
 | `/installations/:id/view` | Read-only detail — physical path, tags, repositories, created/modified. |
 | `/lookups/:kind` | The lookup tables. Renaming here updates every installation at once. |
 | `/repositories` | Source-control locations, linked many-to-many to installations. |
+| `/users` | Accounts that can sign in. Create, rename, set a password, disable and restore. |
 
 `pnpm run dev` starts both apps at once.
 
@@ -161,10 +162,10 @@ Full analysis: [`ai-implementation-plan/4_ef_core_model_and_migration.md`](ai-im
 apps/
   netcorebackends/         .NET solution
     Argus.Api/
-      Controllers/         Installations, Lookups, Auth, Health
+      Controllers/         Installations, Lookups, Repositories, Users, Auth, Health
       Services/            business logic (interface + implementation)
       Mappers/             static entity -> DTO
-      WebApiPoco/          DTOs (Common/, Installations/, Auth/)
+      WebApiPoco/          DTOs (Common/, Installations/, Auth/, Users/)
       Database/
         Entities/          EF entities
           Configurations/  IEntityTypeConfiguration<T> per entity
@@ -235,6 +236,13 @@ green, both the Id and the name view screenshotted against
 `docs/reference/zdrojova-tabulka-4-applicationinstalation.png`. See
 `ai-implementation-plan/11_main_grid_as_the_source_sheet.md` §5.
 
+**2026-08-03 — user management.** `ApplicationUsers` had exactly one row for the life of the
+project, because `DbSeeder` seeds an admin only into an empty table and there was no screen for the
+rest. There is now: `/users` and `/api/users`, with two guards that keep the door open — you cannot
+disable your own account, and you cannot disable the last one that can still sign in. Passwords go
+in through their own endpoint and never come back out. **90 tests** green; exercised against the
+live database, see `ai-implementation-plan/12_user_management.md` §4.
+
 ---
 
 ## Before anyone else can reach this
@@ -242,9 +250,10 @@ green, both the Id and the name view screenshotted against
 Everything below is deliberately configured for a local demo. None of it is safe on a shared
 network, and none of it is difficult to change:
 
-- **Rotate the admin password.** `msfadmin` with a demo password is a demo credential. Because the
-  seeder skips a non-empty table, this means deleting the `ApplicationUsers` row and restarting
-  with a new `Seed:AdminPassword` — or adding a password-change endpoint, which does not exist yet.
+- **Rotate the admin password.** `msfadmin` / `msfadmin` is a demo credential. Since 2026-08-03
+  this is a two-click job on the **Users** screen — the key button next to the account. Editing
+  `Seed:AdminPassword` still does nothing once the database exists, because the seeder skips a
+  non-empty table; the screen is the way.
 - **Move `Jwt:SigningKey` out of `appsettings`.** It is a symmetric HMAC key: whoever holds it can
   mint tokens for any user. Environment variable, user-secrets or a secret store — the file is
   gitignored, which is not the same as protected. Startup already refuses to boot without 32+

@@ -15,6 +15,8 @@ import type {
   LookupUpsert,
   LoginRequest,
   LoginResponse,
+  User,
+  UserUpsert,
 } from './types';
 
 const TOKEN_STORAGE_KEY = 'argus.token';
@@ -173,4 +175,28 @@ export const api = {
 
   deleteRepository: (id: number) =>
     request<boolean>(`/apprepositories/${id}`, { method: 'DELETE' }),
+
+  /**
+   * Accounts. `includeDisabled` exists because a soft-deleted user is invisible to every other
+   * query — without it there would be no way to restore one short of editing the database.
+   */
+  getUsers: (includeDisabled = false) =>
+    request<User[]>(`/users${includeDisabled ? '?includeDisabled=true' : ''}`),
+
+  createUser: (payload: UserUpsert) =>
+    request<User>('/users', { method: 'POST', body: JSON.stringify(payload) }),
+
+  updateUser: (id: number, payload: UserUpsert) =>
+    request<User>(`/users/${id}`, { method: 'PUT', body: JSON.stringify(payload) }),
+
+  /** Its own call, so an ordinary edit can never carry a password by accident. */
+  setUserPassword: (id: number, password: string) =>
+    request<boolean>(`/users/${id}/password`, {
+      method: 'POST',
+      body: JSON.stringify({ password }),
+    }),
+
+  disableUser: (id: number) => request<boolean>(`/users/${id}`, { method: 'DELETE' }),
+
+  restoreUser: (id: number) => request<boolean>(`/users/${id}/restore`, { method: 'POST' }),
 };

@@ -9,9 +9,9 @@
 
  PŘEKONÁNO 2026-07-30 (normalizace schématu). Všechno od sekce
  "KDE JSME (aktuální stav k 2026-07-30)" níže popisuje stav s PĚTI
- číselníky a OSMI tabulkami. Ten stav už neplatí. Sekce 2026-08-01
- a 2026-07-31 hned pod tímhle rámečkem platné JSOU - jsou to nejnovější
- záznamy.
+ číselníky a OSMI tabulkami. Ten stav už neplatí. Sekce 2026-08-03,
+ 2026-08-01 a 2026-07-31 hned pod tímhle rámečkem platné JSOU - jsou to
+ nejnovější záznamy.
 
    - číselníků je DESET (2026-07-30 přibyly RootPaths, PhysicalPaths,
      Tags; AppRepositories jsou devátá sdílená hodnota, 2026-07-31
@@ -24,8 +24,41 @@
    - historie migrací sloučena do jediné InitialCreate; z existující
      dev databáze NEVEDE cesta nahoru, musí se dropnout a naseedovat
 
- Aktuální plán a postup ověření: ai-implementation-plan/11_main_grid_as_the_source_sheet.md
+ Aktuální plán a postup ověření: ai-implementation-plan/12_user_management.md
 =====================================================================
+
+
+---------------------------------------------------------------------
+2026-08-03 - SPRÁVA UŽIVATELŮ
+---------------------------------------------------------------------
+
+Tabulka ApplicationUsers existovala od fáze 5, ale řádek do ní uměl
+dostat jenom DbSeeder - a ten je idempotentní, takže Argus měl přesně
+jeden účet na celý život a heslo se dalo změnit jen ručně v SSMS.
+Teď má uživatele obrazovku jako každá jiná tabulka: /users a /api/users
+(seznam, založení, editace, nastavení hesla, měkké smazání, obnovení).
+
+Uživatelé ZÁMĚRNĚ nejsou jedenáctý číselník, i když tabulka tak vypadá:
+LookupUpsertDto nemá kam dát heslo (generická obrazovka dělá
+read-modify-PUT, čili by heslo posílala tam a zpátky přes prohlížeč)
+a kontrola "používá to nějaká instalace?" u účtu nedává smysl.
+
+DVĚ POJISTKY, aby si nikdo nezavřel dveře:
+  - nemůžeš vyřadit vlastní účet (odhlásilo by tě to uprostřed práce)
+  - nemůžeš vyřadit poslední aktivní účet. Tohle je ta důležitá:
+    DbSeeder by to nezachránil, seeduje jen do PRÁZDNÉ tabulky
+    a měkce smazaný řádek prázdný není.
+
+Heslo se nastavuje vlastním endpointem, nikdy ne přes editaci, a žádné
+DTO nevrací hash ani sůl. Hashuje pořád stávající PasswordHasher
+(PBKDF2-SHA256, 210k iterací, sůl na uživatele).
+
+BRÁNY: dotnet build 0/0, pnpm run test 90 zelených (79 + 11 nových),
+build i lint čisté. Proklikáno přes HTTP proti běžící LocalDB -
+tabulka výsledků je v plánu 12, §4.
+
+Účet: msfadmin / msfadmin. Nic se nemuselo resetovat, přestavba
+z 31.07. seedovala přesně z téhle konfigurace; ověřeno přihlášením.
 
 
 ---------------------------------------------------------------------
@@ -62,7 +95,8 @@ dalšího už neznamená doplnit šest switchů; volitelné sloupce
 BRÁNY: dotnet build 0/0, pnpm run test 79 zelených, build i lint čisté,
 obě zobrazení mřížky proklikaná a nascreenshotovaná.
 
-Ověřeno znovu 2026-08-03: pnpm run test = 79 zelených.
+Ověřeno znovu 2026-08-03: pnpm run test = 79 zelených (před přidáním
+správy uživatelů, viz sekce výš).
 
 
 ---------------------------------------------------------------------

@@ -39,6 +39,7 @@ builder.Services.AddScoped<IInstallationService, InstallationService>();
 builder.Services.AddScoped<ILookupService, LookupService>();
 builder.Services.AddScoped<IAppRepositoryService, AppRepositoryService>();
 builder.Services.AddScoped<IAuthService, AuthService>();
+builder.Services.AddScoped<IUserService, UserService>();
 
 // --- Authentication (username + password -> JWT; no Windows/Negotiate in Argus) ---
 builder.Services
