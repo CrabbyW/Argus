@@ -9,6 +9,9 @@ import type {
   InstallationFilter,
   InstallationListItem,
   InstallationUpsert,
+  JournalEntry,
+  LogContent,
+  LogFile,
   LookupItem,
   LookupKind,
   LookupMetadata,
@@ -155,6 +158,14 @@ export const api = {
   getInstallation: (id: number) =>
     read<InstallationDetail>(`/installations/${id}/read`, {}, `/installations/${id}`),
 
+  /** What was changed on this installation, by whom and when. Newest first. */
+  getInstallationJournal: (id: number, maxEntries = 200) =>
+    read<JournalEntry[]>(
+      `/installations/${id}/journal`,
+      { maxEntries },
+      `/installations/${id}/journal?maxEntries=${maxEntries}`,
+    ),
+
   createInstallation: (payload: InstallationUpsert) =>
     request<InstallationDetail>('/installations', {
       method: 'POST',
@@ -252,4 +263,24 @@ export const api = {
   disableUser: (id: number) => request<boolean>(`/users/${id}`, { method: 'DELETE' }),
 
   restoreUser: (id: number) => request<boolean>(`/users/${id}/restore`, { method: 'POST' }),
+
+  /** The log files on the server, newest first. Read-only — nothing here can delete one. */
+  getLogFiles: () => read<LogFile[]>('/logs/search', {}, '/logs'),
+
+  /**
+   * The tail of one file. `maxLines` is what keeps this endpoint usable against a log that has
+   * been running for weeks; the server clamps it as well, so a large number is safe to send.
+   */
+  getLogContent: (name: string, maxLines: number, searchTerm?: string) => {
+    const params = new URLSearchParams({ maxLines: String(maxLines) });
+    if (searchTerm) {
+      params.set('searchTerm', searchTerm);
+    }
+
+    return read<LogContent>(
+      `/logs/${encodeURIComponent(name)}/read`,
+      { maxLines, searchTerm: searchTerm ?? null },
+      `/logs/${encodeURIComponent(name)}?${params.toString()}`,
+    );
+  },
 };

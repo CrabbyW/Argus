@@ -1,6 +1,7 @@
 using System.Text;
 using Argus.Api.Configuration;
 using Argus.Api.Database;
+using Argus.Api.Database.Interceptors;
 using Argus.Api.Middleware;
 using Argus.Api.Services;
 using log4net;
@@ -33,7 +34,15 @@ if (string.IsNullOrWhiteSpace(jwtOptions.SigningKey) || jwtOptions.SigningKey.Le
 }
 
 // --- Persistence ---
-builder.Services.AddDbContext<ArgusDbContext>(options => options.UseSqlServer(connectionString));
+// The journal interceptor is scoped like the context it hangs on, because the username it records
+// belongs to the request.
+builder.Services.AddHttpContextAccessor();
+builder.Services.AddScoped<ICurrentUserAccessor, CurrentUserAccessor>();
+builder.Services.AddScoped<EntityJournalInterceptor>();
+
+builder.Services.AddDbContext<ArgusDbContext>((serviceProvider, options) => options
+    .UseSqlServer(connectionString)
+    .AddInterceptors(serviceProvider.GetRequiredService<EntityJournalInterceptor>()));
 
 // --- Application services ---
 builder.Services.AddScoped<IInstallationService, InstallationService>();
@@ -41,6 +50,10 @@ builder.Services.AddScoped<ILookupService, LookupService>();
 builder.Services.AddScoped<IAppRepositoryService, AppRepositoryService>();
 builder.Services.AddScoped<IAuthService, AuthService>();
 builder.Services.AddScoped<IUserService, UserService>();
+builder.Services.AddScoped<IEntityJournalService, EntityJournalService>();
+
+// Stateless and file-backed, so one instance serves every request.
+builder.Services.AddSingleton<ILogFileService, LogFileService>();
 
 // Log files are written by log4net and expired by this: an age rule in days, which
 // log4net's file-count rolling cannot express.

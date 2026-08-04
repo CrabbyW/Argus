@@ -16,10 +16,14 @@ public class InstallationsController : ControllerBase
     private static readonly ILog logger = LogManager.GetLogger(typeof(InstallationsController));
 
     private readonly IInstallationService installationService;
+    private readonly IEntityJournalService journalService;
 
-    public InstallationsController(IInstallationService installationService)
+    public InstallationsController(
+        IInstallationService installationService,
+        IEntityJournalService journalService)
     {
         this.installationService = installationService;
+        this.journalService = journalService;
     }
 
     /// <summary>
@@ -59,6 +63,31 @@ public class InstallationsController : ControllerBase
         }
 
         return Ok(new ApiResponse<InstallationDetailDto> { Success = true, Data = result });
+    }
+
+    /// <summary>
+    /// What was changed on this installation, by whom and when. Lives on the installation rather
+    /// than on a journal resource of its own because that is the only way it is ever asked for.
+    /// </summary>
+    [HttpPost("{id:int}/journal")]
+    [EndpointName("Installations_ReadInstallationJournal")]
+    [ProducesResponseType(typeof(ApiResponse<IReadOnlyList<JournalEntryDto>>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ErrorResponse), StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> GetInstallationJournal(int id, [FromBody] JournalReadRequestDto? request)
+    {
+        var entries = await journalService.GetForInstallationAsync(id, request?.MaxEntries ?? 200);
+
+        if (entries is null)
+        {
+            return NotFound(new ErrorResponse
+            {
+                Success = false,
+                ErrorCode = "INSTALLATION_NOT_FOUND",
+                Message = $"Installation {id} was not found."
+            });
+        }
+
+        return Ok(new ApiResponse<IReadOnlyList<JournalEntryDto>> { Success = true, Data = entries });
     }
 
     [HttpPost]

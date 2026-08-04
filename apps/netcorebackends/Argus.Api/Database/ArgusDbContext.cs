@@ -31,6 +31,18 @@ public class ArgusDbContext : DbContext
     // --- Auth ---
     public DbSet<ApplicationUser> ApplicationUsers => Set<ApplicationUser>();
 
+    // --- Audit: who changed what on which installation, written by EntityJournalInterceptor ---
+    public DbSet<EntityJournalEntry> EntityJournal => Set<EntityJournalEntry>();
+
+    /// <summary>
+    /// Turns the journal off for writes that are not somebody's edit.
+    ///
+    /// Set by <see cref="DbSeeder"/>: seeding writes ~200 demo installations straight through this
+    /// context, and journaling them would bury the first real change under rows nobody made. It
+    /// doubles as the interceptor's re-entrancy guard when it saves its own rows.
+    /// </summary>
+    public bool JournalingSuppressed { get; set; }
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);

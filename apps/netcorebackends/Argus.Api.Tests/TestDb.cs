@@ -1,5 +1,7 @@
 using Argus.Api.Database;
 using Argus.Api.Database.Entities;
+using Argus.Api.Database.Interceptors;
+using Argus.Api.Services;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 
@@ -127,6 +129,22 @@ internal sealed class TestDb : IDisposable
     /// context that did the writing, so a stale change tracker cannot make a test pass.
     /// </summary>
     public ArgusDbContext NewContext() => new(options);
+
+    /// <summary>
+    /// A context with the journal interceptor attached, as the running app builds it, recording
+    /// <paramref name="username"/> as the actor.
+    ///
+    /// Separate from <see cref="NewContext"/> so every existing test keeps writing without a
+    /// journal — those tests are about the installation model, and a second table filling up
+    /// behind them would only make their assertions harder to read.
+    /// </summary>
+    public ArgusDbContext NewJournalingContext(string username = "tester") =>
+        new(new DbContextOptionsBuilder<ArgusDbContext>()
+            .UseSqlite(connection)
+            .AddInterceptors(new EntityJournalInterceptor(new FixedUser(username)))
+            .Options);
+
+    private sealed record FixedUser(string Username) : ICurrentUserAccessor;
 
     public void Dispose()
     {

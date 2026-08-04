@@ -24,6 +24,12 @@ public static class DbSeeder
         using var scope = services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<ArgusDbContext>();
 
+        // Seeding is not somebody's edit. Without this the demo volume alone would write a couple
+        // of hundred journal rows made by nobody, and the first real change would be buried under
+        // them. A seeded installation shows an empty history until someone actually changes it,
+        // which is the truth.
+        db.JournalingSuppressed = true;
+
         logger.Info("Applying database migrations...");
         await db.Database.MigrateAsync();
 

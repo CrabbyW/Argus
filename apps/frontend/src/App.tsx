@@ -28,6 +28,7 @@ import { ArgusMark } from './components/ArgusMark';
 import { TOASTER_ID } from './hooks/useAppToast';
 import { LoginPage } from './pages/LoginPage';
 import { InstallationsPage } from './pages/InstallationsPage';
+import { LogsPage } from './pages/LogsPage';
 import { LookupsPage } from './pages/LookupsPage';
 import { RepositoriesPage } from './pages/RepositoriesPage';
 import { UsersPage } from './pages/UsersPage';
@@ -79,6 +80,7 @@ function activeTab(pathname: string): string {
   if (pathname.startsWith('/lookups')) return 'lookups';
   if (pathname.startsWith('/repositories')) return 'repositories';
   if (pathname.startsWith('/users')) return 'users';
+  if (pathname.startsWith('/logs')) return 'logs';
   return 'installations';
 }
 
@@ -176,6 +178,7 @@ export function App() {
           <Tab value="lookups">Lookups</Tab>
           <Tab value="repositories">Repositories</Tab>
           <Tab value="users">Users</Tab>
+          <Tab value="logs">Logs</Tab>
         </TabList>
 
         <div className={styles.spacer} />
@@ -206,6 +209,7 @@ export function App() {
           <Route path="/lookups/:kind" element={<LookupsPage />} />
           <Route path="/repositories" element={<RepositoriesPage />} />
           <Route path="/users" element={<UsersPage />} />
+          <Route path="/logs" element={<LogsPage />} />
           <Route path="*" element={<NotFoundPage />} />
         </Routes>
       </main>

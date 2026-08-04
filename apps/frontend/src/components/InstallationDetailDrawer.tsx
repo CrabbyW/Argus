@@ -9,6 +9,8 @@ import {
   MessageBarBody,
   OverlayDrawer,
   Spinner,
+  Tab,
+  TabList,
   Text,
   makeStyles,
   tokens,
@@ -16,11 +18,15 @@ import {
 import { DismissRegular, EditRegular } from '@fluentui/react-icons';
 import { api } from '../api/client';
 import type { InstallationDetail } from '../api/types';
+import { InstallationHistory } from './InstallationHistory';
 
 const useStyles = makeStyles({
   // Wide enough for a physical path on one line, narrow enough to leave the grid readable
-  // behind it — the point of a drawer over a dialog is that the row stays in view.
-  surface: { width: '460px', maxWidth: '100vw' },
+  // behind it — the point of a drawer over a dialog is that the row stays in view. 460px was
+  // that balance for the detail alone; the History tab is a six-column table and needs the rest.
+  surface: { width: '740px', maxWidth: '100vw' },
+
+  tabs: { marginBottom: '16px' },
 
   grid: {
     display: 'grid',
@@ -77,9 +83,14 @@ export function InstallationDetailDrawer({ installationId, onClose, onEdit }: Pr
 
   const [detail, setDetail] = useState<InstallationDetail | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [tab, setTab] = useState<'details' | 'history'>('details');
 
   useEffect(() => {
     let cancelled = false;
+
+    // Back to the detail when the selection moves: the history of the previous row is not an
+    // answer to a question about this one.
+    setTab('details');
 
     // Reset first: the drawer stays mounted while the selection moves from row to row, and
     // without this the previous installation would show under the new one's title.
@@ -136,6 +147,23 @@ export function InstallationDetailDrawer({ installationId, onClose, onEdit }: Pr
         {!detail && !error && <Spinner label="Loading..." />}
 
         {detail && (
+          <>
+            <TabList
+              className={styles.tabs}
+              selectedValue={tab}
+              onTabSelect={(_, data) => setTab(data.value as 'details' | 'history')}
+            >
+              <Tab value="details">Details</Tab>
+              <Tab value="history">History</Tab>
+            </TabList>
+
+            {/* Mounted only when selected, so the journal is fetched on demand rather than
+                behind every row the user clicks through. */}
+            {tab === 'history' && <InstallationHistory installationId={installationId} />}
+          </>
+        )}
+
+        {detail && tab === 'details' && (
           <>
             <div className={styles.grid}>
               <Row label="Machine">{detail.machineName}</Row>

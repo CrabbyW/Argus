@@ -246,3 +246,43 @@ export interface UserUpsert {
   /** Required when creating. Ignored by the server on update — see `12_user_management.md`. */
   password?: string;
 }
+
+/** One file in the server's log directory, from `POST /api/logs/search`. */
+export interface LogFile {
+  name: string;
+  /** "action" is the audit trail, "diagnostic" is everything log4net's root logger writes. */
+  kind: 'action' | 'diagnostic';
+  sizeBytes: number;
+  lastWriteUtc: string;
+}
+
+/** The tail of one log file, oldest line first. */
+export interface LogContent {
+  name: string;
+  lines: string[];
+  totalLines: number;
+  /** True when older lines were left out because the line limit was reached. */
+  isTruncated: boolean;
+  lastWriteUtc: string;
+}
+
+/**
+ * One row of an installation's history — `POST /api/installations/{id}/journal`.
+ *
+ * Values are text as they were resolved when the change was made, so a lookup renamed later does
+ * not rewrite what the history says. `oldValueId` / `newValueId` keep the raw reference alongside.
+ */
+export interface JournalEntry {
+  id: number;
+  /** Rows sharing this were written by one save — one edit by one person. */
+  changeSetId: string;
+  changedUtc: string;
+  changedBy: string;
+  action: 'Created' | 'Updated' | 'Deleted' | 'Restored' | 'LinkAdded' | 'LinkRemoved';
+  entityName: string;
+  field: string | null;
+  oldValue: string | null;
+  newValue: string | null;
+  oldValueId: number | null;
+  newValueId: number | null;
+}

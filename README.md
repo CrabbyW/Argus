@@ -85,10 +85,11 @@ The UI has these sections, each with its own address:
 | Address | What it is |
 |---|---|
 | `/installations` | The grid — the `ApplicationInstalation` sheet. Shows foreign keys by default, `?view=names` resolves them. Filters, sorting and paging all live in the query string, so a filtered view can be bookmarked and shared. |
-| `/installations/:id/view` | Read-only detail — physical path, tags, repositories, created/modified. |
+| `/installations/:id/view` | Read-only detail — physical path, tags, repositories, created/modified — plus a **History** tab: every recorded change to this installation, who made it and what it was before. |
 | `/lookups/:kind` | The lookup tables. Renaming here updates every installation at once. |
 | `/repositories` | Source-control locations, linked many-to-many to installations. |
 | `/users` | Accounts that can sign in. Create, rename, set a password, disable and restore. |
+| `/logs` | The log files the API writes — the action log (one line per request) and the diagnostic log. Read-only: pick a file, filter the lines, optionally auto-refresh. Files expire by `AuditLog:RetentionDays`, never from here. |
 
 `pnpm run dev` starts both apps at once.
 
@@ -134,10 +135,18 @@ AppRepositories ──< InstallationRepositories >──┴──> ApplicationIn
      └──> RepositoryTypes            (svn / git / bitbucket — a lookup, not an enum)
 
 ApplicationUser                    (login)
+
+EntityJournal ──> ApplicationInstallations
+                                   (change history: one row per changed field)
 ```
 
-Fourteen tables: ten lookups (the eight above plus `AppRepositories` and `RepositoryTypes`), the
-installation itself, two link tables and the user.
+Fifteen tables: ten lookups (the eight above plus `AppRepositories` and `RepositoryTypes`), the
+installation itself, two link tables, the user, and the change journal.
+
+`EntityJournal` records who changed what on an installation, when, and from which value to which —
+including links made from the Repositories screen. Foreign keys are stored as the **name that was
+on screen at the time**, so renaming a machine later cannot rewrite history, and the table has no
+soft delete and no retention: an audit row is written once and kept.
 
 The installation row holds **no names of its own** — every shared value is an `Id` into a lookup
 that must already exist. Its own columns are `IsActive`, `ValidFromDate`, `ValidToDate`,
@@ -162,7 +171,7 @@ Full analysis: [`ai-implementation-plan/4_ef_core_model_and_migration.md`](ai-im
 apps/
   netcorebackends/         .NET solution
     Argus.Api/
-      Controllers/         Installations, Lookups, Repositories, Users, Auth, Health
+      Controllers/         Installations, Lookups, Repositories, Users, Logs, Auth, Health
       Services/            business logic (interface + implementation)
       Mappers/             static entity -> DTO
       WebApiPoco/          DTOs (Common/, Installations/, Auth/, Users/)
@@ -170,6 +179,7 @@ apps/
         Entities/          EF entities
           Configurations/  IEntityTypeConfiguration<T> per entity
           Enums/
+        Interceptors/      EntityJournalInterceptor (fills the change journal)
         Migrations/        InitialCreate
       Middleware/          GlobalExceptionHandlerMiddleware
     Argus.Api.Tests/       xUnit, SQLite in memory

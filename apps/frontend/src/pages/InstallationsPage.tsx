@@ -486,6 +486,9 @@ export function InstallationsPage() {
           className={styles.facetButton}
           onClick={() => setPicker({ label, clearLabel, kind, selected, multiple, onApply })}
           aria-haspopup="dialog"
+          // Its visible text is the value alone — half the facets read as a button called "All"
+          // otherwise, with nothing to say which filter they are.
+          aria-label={`${label}: ${shown ?? 'All'}`}
         >
           <span className={mergeClasses(styles.facetValue, shown ? undefined : styles.muted)}>
             {shown ?? 'All'}
@@ -772,6 +775,7 @@ export function InstallationsPage() {
               <Field label="Serving">
                 <Dropdown
                   className={styles.dropdown}
+                  aria-label="Serving"
                   placeholder="Any"
                   selectedOptions={[activeValue]}
                   value={activeValue === '' ? 'Any' : activeValue === 'true' ? 'Active' : 'Inactive'}

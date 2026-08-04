@@ -226,6 +226,9 @@ export function InstallationDialog({
       <Field label={label} required={options.required} className={styles.half}>
         <Dropdown
           className={styles.grow}
+          // Field labels its own root, not the combobox inside it, so without this the control
+          // announces itself as an unnamed combobox and cannot be found by its label at all.
+          aria-label={label}
           placeholder={options.allowEmpty ? '(none)' : `Select ${label.toLowerCase()}`}
           selectedOptions={selectedId ? [String(selectedId)] : []}
           value={selected?.name ?? ''}
@@ -266,6 +269,7 @@ export function InstallationDialog({
       >
         <Combobox
           className={styles.grow}
+          aria-label={label}
           freeform
           value={value}
           placeholder={options.placeholder}
@@ -299,6 +303,7 @@ export function InstallationDialog({
       <Field label={label}>
         <Dropdown
           className={styles.grow}
+          aria-label={label}
           multiselect
           placeholder={placeholder}
           selectedOptions={selectedIds.map(String)}

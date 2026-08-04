@@ -246,6 +246,7 @@ export function RepositoriesPage() {
       <div className={styles.filterRow}>
         <Field label="Application" className={styles.filter}>
           <Dropdown
+            aria-label="Application"
             placeholder="All applications"
             selectedOptions={appNameFilter ? [String(appNameFilter)] : ['']}
             value={itemsOf(lookups, 'appnames').find((app) => app.id === appNameFilter)?.name ?? ''}
@@ -264,6 +265,7 @@ export function RepositoriesPage() {
 
         <Field label="Installation" className={styles.filter}>
           <Dropdown
+            aria-label="Installation"
             placeholder="All installations"
             selectedOptions={installationFilter ? [String(installationFilter)] : ['']}
             value={installationFilter ? (installationLabels.get(installationFilter) ?? '') : ''}
@@ -377,6 +379,7 @@ export function RepositoriesPage() {
                       shared value. It used to be a hardcoded list mirroring a C# enum. */}
                   <Field label="Type" hint="Leave empty if the system is not known.">
                     <Dropdown
+                      aria-label="Type"
                       selectedOptions={
                         editing.form.repositoryTypeId === null ||
                         editing.form.repositoryTypeId === undefined
@@ -426,6 +429,7 @@ export function RepositoriesPage() {
                     hint="Leave empty to register the repository before its installation exists."
                   >
                     <Dropdown
+                      aria-label="Installations"
                       multiselect
                       placeholder="Not linked to any installation"
                       selectedOptions={editing.form.installationIds.map(String)}

@@ -220,7 +220,10 @@ export function LookupsPage() {
           two rows that push the table down the page. */}
       <TabList
         className={styles.tabStrip}
-        selectedValue={activeKind}
+        // Empty string, not undefined, while the metadata is still loading: an undefined value
+        // makes this an uncontrolled TabList for one render and a controlled one afterwards,
+        // which React warns about. No tab matches "", which is correct — there are none yet.
+        selectedValue={activeKind ?? ''}
         onTabSelect={(_, data) => navigate(`/lookups/${data.value}`)}
       >
         {tabs.map((t) => (
