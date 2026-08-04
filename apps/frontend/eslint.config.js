@@ -33,11 +33,14 @@ export default tseslint.config(
     rules: { 'react-refresh/only-export-components': 'off' },
   },
   {
-    // AuthProvider and its useAuth hook belong in one file; splitting them to satisfy fast
+    // A provider and the hook that reads it belong in one file; splitting them to satisfy fast
     // refresh would spread one concern over two.
-    files: ['src/auth/AuthContext.tsx'],
+    files: ['src/auth/AuthContext.tsx', 'src/theme/ThemeContext.tsx'],
     rules: {
-      'react-refresh/only-export-components': ['warn', { allowExportNames: ['useAuth'] }],
+      'react-refresh/only-export-components': [
+        'warn',
+        { allowExportNames: ['useAuth', 'useTheme'] },
+      ],
     },
   },
 );

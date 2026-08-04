@@ -10,12 +10,19 @@ public static class InstallationMapper
     public static InstallationListItemDto ToListItemDto(ApplicationInstallation entity) => new()
     {
         Id = entity.Id,
+        MachineId = entity.MachineId,
         MachineName = entity.Machine.Name,
+        AppNameId = entity.AppNameId,
         AppName = entity.AppName.Name,
+        AppStageNameId = entity.AppStageNameId,
         AppStageName = entity.AppStageName.Name,
+        ProcessorArchitectureId = entity.ProcessorArchitectureId,
         ProcessorArchitecture = entity.ProcessorArchitecture.Name,
+        DnsEndpointId = entity.DnsEndpointId,
         DnsName = entity.DnsEndpoint?.Name,
+        RootPathId = entity.RootPathId,
         RootPath = entity.RootPath.Name,
+        PhysicalPathId = entity.PhysicalPathId,
         PhysicalPath = entity.PhysicalPath?.Name,
         Tags = entity.InstallationTags
             .Select(link => link.Tag.Name)
@@ -67,7 +74,8 @@ public static class InstallationMapper
     {
         Id = entity.Id,
         RepositoryUrl = entity.Name,
-        RepositoryType = entity.RepositoryType,
+        RepositoryTypeId = entity.RepositoryTypeId,
+        RepositoryTypeName = entity.RepositoryType?.Name,
         Description = entity.Description,
         InstallationIds = entity.InstallationRepositories
             .Select(link => link.InstallationId)

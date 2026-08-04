@@ -11,7 +11,9 @@ not been touched and no longer compiles or talks to the API.** This plan takes t
 that half-state to a complete, verified implementation.
 
 This file supersedes `plan.txt`, which describes a migration strategy that no longer exists.
-See §0.
+See §0. Every `plan.txt` below refers to that file; it was moved out of the repository root on
+2026-08-03 and now lives at `docs/historie/plan-normalizace-prekonany.txt`, kept only as a record
+of the reasoning.
 
 ---
 
@@ -132,6 +134,7 @@ last quarter?" question unanswerable from the UI even though the API answers it.
 | 7 | PhysicalPaths | `physicalpaths` | yes | **new**, names up to 512 |
 | 8 | Tags | `tags` | yes | **new**, M:N via `InstallationTags` |
 | 9 | AppRepositories | `apprepositories` | **read-only here** | M:N via `InstallationRepositories`; writes go through `/api/apprepositories` |
+| 10 | RepositoryTypes | `repositorytypes` | yes | **added 2026-07-31**, after this plan was written — see §10 |
 
 `AppRepositories` is registered `IsReadOnly = true` in `LookupRegistry` on purpose:
 `LookupUpsertDto` has nowhere to put `RepositoryType` or the installation links, so an ordinary
@@ -532,4 +535,45 @@ than misread, with an unfiltered grid looking exactly like a correct one.
   detail and edit dialogs read only `id`, `repositoryUrl` and `repositoryType` — but it is a live
   trap: anything that round-trips a repository from a detail payload into a `PUT` would silently
   unlink it from every sibling installation. Left alone because fixing it is a projection change
-  with no current consumer.
+  with no current consumer. **Fixed 2026-07-31** (commit `2c60aea`): the detail projection now
+  reports every installation the repository serves, same as the list endpoint.
+
+---
+
+## 10. The tenth lookup — `RepositoryTypes`, 2026-07-31
+
+Written up after the fact. The work was a single-session follow-on to this plan rather than a new
+phase, so it is recorded here instead of in a plan file of its own; that is a deviation from
+`CLAUDE-planning-standards.MD` and it is named rather than hidden.
+
+**What changed and why.** `RepositoryType` was a C# enum (`Unknown`, `Git`, `Svn`, `Bitbucket`,
+`Mercurial`, `Tfs`) stored as an `int`. The roadplan lists it as a *column* of `AppRepositories`, which is what the
+enum implemented — but it is a shared vocabulary like every other value in this model, and the
+rule the whole schema rests on ("every shared value is its own table with an Id") has no exception
+for short strings. An enum also means adding a repository kind is a code change and a deploy,
+where the point of Argus is that operators maintain their own vocabularies.
+
+- `RepositoryType` entity + configuration; `AppRepository.RepositoryTypeId` is **nullable** —
+  the old `Unknown` member had no row to become, and "not recorded" is honestly a null.
+- Migration `20260731211501_AddRepositoryTypesLookup`.
+- Registered in `LookupRegistry` as a fully editable kind (route `repositorytypes`). It is the one
+  kind an installation does not reference directly, so its in-use check runs over
+  `AppRepositories` — `Usage.FromRepositories`.
+- Total: **ten lookups, fourteen tables**.
+
+**The registry refactor that came with it.** Adding the ninth lookup under the old shape meant
+editing six `switch` statements in `LookupService`, and the audit in §0.4 is where that cost was
+first felt. The layer was rewritten to `Services/Lookups/` — one `LookupDescriptor<TEntity>` per
+kind holding its projection, ordering, upsert and usage query, plus the presentation strings and
+which optional columns it has (`HasDescription`, `HasSortOrder`, `HasLoadBalancer`). The frontend
+reads those from `GET /api/lookups` instead of keeping its own copy of the tab list. The tenth
+lookup was therefore one descriptor, not six switch arms.
+
+Descriptors are deliberately written against the **concrete** entity type, not `ILookupEntity`:
+a projection built over the interface puts interface members into the expression tree, which EF
+resolves only by name-matching. Concrete lambdas always translate to SQL.
+
+- [x] Entity, configuration, migration
+- [x] Descriptor registered; `LookupKind.RepositoryTypes` appended (existing numeric values unchanged)
+- [x] Frontend type union and lookup hook pick it up from the served metadata
+- [x] `dotnet build` 0/0, `pnpm run test` 79 green

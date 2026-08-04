@@ -20,8 +20,9 @@ import {
 } from '@fluentui/react-components';
 import { ApiError, api } from '../api/client';
 import type { InstallationUpsert, LookupItem } from '../api/types';
-import { lookupMaxNameLength } from '../api/types';
+import type { LookupMetadata } from '../api/types';
 import type { Lookups } from '../hooks/useLookups';
+import { itemsOf, maxNameLengthOf } from '../hooks/useLookups';
 
 const useStyles = makeStyles({
   form: { display: 'flex', flexDirection: 'column', rowGap: '12px' },
@@ -35,6 +36,7 @@ interface Props {
   /** null = create a new installation. */
   installationId: number | null;
   lookups: Lookups;
+  lookupMetadata: LookupMetadata[];
   onClose: () => void;
   onSaved: () => void;
 }
@@ -80,7 +82,13 @@ const blankForm: FormState = {
 
 const norm = (value: string) => value.trim().toLowerCase();
 
-export function InstallationDialog({ installationId, lookups, onClose, onSaved }: Props) {
+export function InstallationDialog({
+  installationId,
+  lookups,
+  lookupMetadata,
+  onClose,
+  onSaved,
+}: Props) {
   const styles = useStyles();
 
   const [form, setForm] = useState<FormState>(blankForm);
@@ -138,7 +146,7 @@ export function InstallationDialog({ installationId, lookups, onClose, onSaved }
    */
   async function resolvePathId(kind: 'rootpaths' | 'physicalpaths', text: string): Promise<number> {
     const wanted = norm(text);
-    const known = kind === 'rootpaths' ? lookups.rootPaths : lookups.physicalPaths;
+    const known = itemsOf(lookups, kind);
 
     const existing = known.find((item) => norm(item.name) === wanted);
     if (existing) {
@@ -218,6 +226,9 @@ export function InstallationDialog({ installationId, lookups, onClose, onSaved }
       <Field label={label} required={options.required} className={styles.half}>
         <Dropdown
           className={styles.grow}
+          // Field labels its own root, not the combobox inside it, so without this the control
+          // announces itself as an unnamed combobox and cannot be found by its label at all.
+          aria-label={label}
           placeholder={options.allowEmpty ? '(none)' : `Select ${label.toLowerCase()}`}
           selectedOptions={selectedId ? [String(selectedId)] : []}
           value={selected?.name ?? ''}
@@ -258,10 +269,11 @@ export function InstallationDialog({ installationId, lookups, onClose, onSaved }
       >
         <Combobox
           className={styles.grow}
+          aria-label={label}
           freeform
           value={value}
           placeholder={options.placeholder}
-          maxLength={lookupMaxNameLength[kind]}
+          maxLength={maxNameLengthOf(lookupMetadata, kind)}
           onChange={(event) => onChange(event.target.value)}
           onOptionSelect={(_, data) => onChange(data.optionText ?? '')}
         >
@@ -291,6 +303,7 @@ export function InstallationDialog({ installationId, lookups, onClose, onSaved }
       <Field label={label}>
         <Dropdown
           className={styles.grow}
+          aria-label={label}
           multiselect
           placeholder={placeholder}
           selectedOptions={selectedIds.map(String)}
@@ -343,18 +356,18 @@ export function InstallationDialog({ installationId, lookups, onClose, onSaved }
                 )}
 
                 <div className={styles.row}>
-                  {lookupDropdown('Machine', lookups.machines, form.machineId, (id) =>
+                  {lookupDropdown('Machine', itemsOf(lookups, 'machines'), form.machineId, (id) =>
                     patch({ machineId: id ?? 0 }), { required: true })}
-                  {lookupDropdown('Application', lookups.appNames, form.appNameId, (id) =>
+                  {lookupDropdown('Application', itemsOf(lookups, 'appnames'), form.appNameId, (id) =>
                     patch({ appNameId: id ?? 0 }), { required: true })}
                 </div>
 
                 <div className={styles.row}>
-                  {lookupDropdown('Stage', lookups.appStageNames, form.appStageNameId, (id) =>
+                  {lookupDropdown('Stage', itemsOf(lookups, 'appstagenames'), form.appStageNameId, (id) =>
                     patch({ appStageNameId: id ?? 0 }), { required: true })}
                   {lookupDropdown(
                     'Architecture',
-                    lookups.processorArchitectures,
+                    itemsOf(lookups, 'processorarchitectures'),
                     form.processorArchitectureId,
                     (id) => patch({ processorArchitectureId: id ?? 0 }),
                     { required: true },
@@ -362,13 +375,13 @@ export function InstallationDialog({ installationId, lookups, onClose, onSaved }
                 </div>
 
                 <div className={styles.row}>
-                  {lookupDropdown('DNS endpoint', lookups.dnsEndpoints, form.dnsEndpointId, (id) =>
+                  {lookupDropdown('DNS endpoint', itemsOf(lookups, 'dnsendpoints'), form.dnsEndpointId, (id) =>
                     patch({ dnsEndpointId: id }), { allowEmpty: true })}
 
                   {pathCombobox(
                     'Root path',
                     'rootpaths',
-                    lookups.rootPaths,
+                    itemsOf(lookups, 'rootpaths'),
                     form.rootPathText,
                     (text) => patch({ rootPathText: text }),
                     { required: true, placeholder: '/' },
@@ -379,19 +392,19 @@ export function InstallationDialog({ installationId, lookups, onClose, onSaved }
                   {pathCombobox(
                     'Physical path',
                     'physicalpaths',
-                    lookups.physicalPaths,
+                    itemsOf(lookups, 'physicalpaths'),
                     form.physicalPathText,
                     (text) => patch({ physicalPathText: text }),
                     { placeholder: 'c:\\inetpub\\myapp' },
                   )}
                 </div>
 
-                {multiselect('Tags', lookups.tags, form.tagIds, (ids) => patch({ tagIds: ids }),
+                {multiselect('Tags', itemsOf(lookups, 'tags'), form.tagIds, (ids) => patch({ tagIds: ids }),
                   'No tags')}
 
                 {multiselect(
                   'Repositories',
-                  lookups.repositories,
+                  itemsOf(lookups, 'apprepositories'),
                   form.repositoryIds,
                   (ids) => patch({ repositoryIds: ids }),
                   'No repositories',

@@ -6,7 +6,7 @@ using Argus.Api.WebApiPoco.Common;
 namespace Argus.Api.Services.Lookups;
 
 /// <summary>
-/// The non-generic face of a descriptor, so <see cref="LookupRegistry"/> can hold all nine in one
+/// The non-generic face of a descriptor, so <see cref="LookupRegistry"/> can hold all ten in one
 /// dictionary and hand out handlers without reflection.
 /// </summary>
 public interface ILookupDescriptor
@@ -15,6 +15,21 @@ public interface ILookupDescriptor
 
     /// <summary>True when the kind can only be read through the generic lookup layer.</summary>
     bool IsReadOnly { get; }
+
+    // --- Presentation. Served by GET /api/lookups so the UI stops keeping its own copy ---
+
+    /// <summary>Heading for the kind's tab, e.g. "DNS endpoints".</summary>
+    string Label { get; }
+
+    /// <summary>Singular for button and dialog text, e.g. "DNS endpoint".</summary>
+    string Singular { get; }
+
+    /// <summary>Which of the optional columns this kind actually uses.</summary>
+    bool HasDescription { get; }
+
+    bool HasSortOrder { get; }
+
+    bool HasLoadBalancer { get; }
 
     /// <summary>
     /// The entity this kind maps to. Exposed so callers that need the kind's configuration — the
@@ -37,6 +52,16 @@ public sealed class LookupDescriptor<TEntity> : ILookupDescriptor
 {
     public required LookupKind Kind { get; init; }
 
+    public required string Label { get; init; }
+
+    public required string Singular { get; init; }
+
+    public bool HasDescription { get; init; }
+
+    public bool HasSortOrder { get; init; }
+
+    public bool HasLoadBalancer { get; init; }
+
     /// <summary>
     /// Projection to the wire DTO. Must be pure member reads — it is both translated to SQL for
     /// queries and compiled and run in memory to shape a row that was just saved, and those two
@@ -58,13 +83,10 @@ public sealed class LookupDescriptor<TEntity> : ILookupDescriptor
     public required Action<TEntity, LookupUpsertDto> Apply { get; init; }
 
     /// <summary>
-    /// "Is this row still referenced?", always expressed from <see cref="ApplicationInstallation"/>
-    /// rather than from the lookup's own navigation. Rooting the query there is load-bearing: it
-    /// is what makes the IsEnabled query filter apply, so a decommissioned installation does not
-    /// block deleting a lookup. A <c>Func</c> returning the expression, not a stored expression, so
-    /// the id arrives as a closure constant EF can parameterise.
+    /// "Is this row still referenced?" Built through <see cref="Usage"/>, which is where the
+    /// reasoning about *which* table to ask lives.
     /// </summary>
-    public required Func<int, Expression<Func<ApplicationInstallation, bool>>> InUseBy { get; init; }
+    public required UsageProbe Usage { get; init; }
 
     public bool IsReadOnly { get; init; }
 

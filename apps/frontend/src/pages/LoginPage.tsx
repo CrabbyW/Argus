@@ -13,6 +13,7 @@ import {
   tokens,
 } from '@fluentui/react-components';
 import { useAuth } from '../auth/AuthContext';
+import { ArgusMark } from '../components/ArgusMark';
 
 const useStyles = makeStyles({
   page: {
@@ -31,6 +32,8 @@ const useStyles = makeStyles({
     flexDirection: 'column',
     rowGap: '16px',
   },
+  identity: { display: 'flex', alignItems: 'center', gap: '14px' },
+  mark: { color: tokens.colorBrandForeground1, flexShrink: 0 },
   subtitle: {
     color: tokens.colorNeutralForeground3,
     margin: 0,
@@ -63,9 +66,14 @@ export function LoginPage() {
   return (
     <div className={styles.page}>
       <Card className={styles.card}>
-        <div>
-          <Title2>Argus</Title2>
-          <p className={styles.subtitle}>Installation inventory</p>
+        {/* The one screen with room for the mark at a size worth showing it — 40px, well
+            over the 24px floor `brand/README.md` sets for the standalone mark. */}
+        <div className={styles.identity}>
+          <ArgusMark size={40} className={styles.mark} />
+          <div>
+            <Title2>Argus</Title2>
+            <p className={styles.subtitle}>Installation inventory</p>
+          </div>
         </div>
 
         {error && (

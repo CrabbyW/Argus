@@ -1,7 +1,7 @@
 =====================================================================
  ARGUS - PROGRESS LOG
 =====================================================================
- Poslední aktualizace: 2026-07-31
+ Poslední aktualizace: 2026-08-03
  Kde jsme skončili a čím zítra navázat.
 
  POZOR: tenhle soubor je HISTORICKÝ deník stavby. Aktuální stav, postup
@@ -9,13 +9,14 @@
 
  PŘEKONÁNO 2026-07-30 (normalizace schématu). Všechno od sekce
  "KDE JSME (aktuální stav k 2026-07-30)" níže popisuje stav s PĚTI
- číselníky a OSMI tabulkami. Ten stav už neplatí. Sekce 2026-07-31
- hned pod tímhle rámečkem platná JE - je to nejnovější záznam.
+ číselníky a OSMI tabulkami. Ten stav už neplatí. Sekce 2026-08-03,
+ 2026-08-01 a 2026-07-31 hned pod tímhle rámečkem platné JSOU - jsou to
+ nejnovější záznamy.
 
-   - číselníků je DEVĚT (přibyly RootPaths, PhysicalPaths, Tags;
-     AppRepositories jsou devátá sdílená hodnota, ale s vlastní
-     obrazovkou, ne v generickém editoru)
-   - tabulek je TŘINÁCT
+   - číselníků je DESET (2026-07-30 přibyly RootPaths, PhysicalPaths,
+     Tags; AppRepositories jsou devátá sdílená hodnota, 2026-07-31
+     přibyly RepositoryTypes jako desátá)
+   - tabulek je ČTRNÁCT
    - Tags NENÍ text, je to tabulka + vazba M:N (InstallationTags)
    - AppRepositories nevisí na aplikaci, ale na instalaci (M:N)
    - entity přejmenované: Application -> AppName,
@@ -23,8 +24,79 @@
    - historie migrací sloučena do jediné InitialCreate; z existující
      dev databáze NEVEDE cesta nahoru, musí se dropnout a naseedovat
 
- Aktuální plán a postup ověření: ai-implementation-plan/10_schema_normalization.md
+ Aktuální plán a postup ověření: ai-implementation-plan/12_user_management.md
 =====================================================================
+
+
+---------------------------------------------------------------------
+2026-08-03 - SPRÁVA UŽIVATELŮ
+---------------------------------------------------------------------
+
+Tabulka ApplicationUsers existovala od fáze 5, ale řádek do ní uměl
+dostat jenom DbSeeder - a ten je idempotentní, takže Argus měl přesně
+jeden účet na celý život a heslo se dalo změnit jen ručně v SSMS.
+Teď má uživatele obrazovku jako každá jiná tabulka: /users a /api/users
+(seznam, založení, editace, nastavení hesla, měkké smazání, obnovení).
+
+Uživatelé ZÁMĚRNĚ nejsou jedenáctý číselník, i když tabulka tak vypadá:
+LookupUpsertDto nemá kam dát heslo (generická obrazovka dělá
+read-modify-PUT, čili by heslo posílala tam a zpátky přes prohlížeč)
+a kontrola "používá to nějaká instalace?" u účtu nedává smysl.
+
+DVĚ POJISTKY, aby si nikdo nezavřel dveře:
+  - nemůžeš vyřadit vlastní účet (odhlásilo by tě to uprostřed práce)
+  - nemůžeš vyřadit poslední aktivní účet. Tohle je ta důležitá:
+    DbSeeder by to nezachránil, seeduje jen do PRÁZDNÉ tabulky
+    a měkce smazaný řádek prázdný není.
+
+Heslo se nastavuje vlastním endpointem, nikdy ne přes editaci, a žádné
+DTO nevrací hash ani sůl. Hashuje pořád stávající PasswordHasher
+(PBKDF2-SHA256, 210k iterací, sůl na uživatele).
+
+BRÁNY: dotnet build 0/0, pnpm run test 90 zelených (79 + 11 nových),
+build i lint čisté. Proklikáno přes HTTP proti běžící LocalDB -
+tabulka výsledků je v plánu 12, §4.
+
+Účet: msfadmin / msfadmin. Nic se nemuselo resetovat, přestavba
+z 31.07. seedovala přesně z téhle konfigurace; ověřeno přihlášením.
+
+
+---------------------------------------------------------------------
+2026-08-01 - MŘÍŽKA JE LIST ApplicationInstalation, DESÁTÝ ČÍSELNÍK
+---------------------------------------------------------------------
+
+Zadání říká, že hlavní tabulka je řádek čísel a jména žijí v číselnících
+(roadplan:51-59, docs/reference/zdrojova-tabulka-4-applicationinstalation.png).
+V databázi to platilo od 30.07., ale do UI se to nikdy nepromítlo -
+mřížka ukazovala jen vyřešená jména a InstallationListItemDto cizí klíče
+vůbec neposílalo. Opraveno:
+
+  - DTO i TS typ nesou sedm cizích klíčů, mapper je plní z entity
+    (žádný dotaz navíc, hodnoty už načtené jsou)
+  - mřížka defaultně ukazuje Id v pořadí sloupců zdrojového listu,
+    zarovnaná doprava, monospace; volitelné reference (DnsEndpointId,
+    PhysicalPathId) jsou prázdná buňka, ne pomlčka
+  - každá buňka s Id má vyřešené jméno v title, takže "co je 4?"
+    se odpoví bez opuštění řádku
+  - přepínač Ids <-> Names v hlavičce, stav v URL (?view=names).
+    Je to VĚDOMÝ přídavek nad zadání: kritéria úspěchu v roadplanu
+    jsou otázky ve slovech ("které stroje obsluhují paha.ga.local?")
+    a odpověď "2" není odpověď.
+  - mřížky viditelné i v tmavém motivu (colorNeutralStroke1)
+
+RepositoryTypes jako DESÁTÝ číselník (migrace 20260731211501):
+roadplan ho vypisuje jako sloupec AppRepositories, ale je to sdílená
+hodnota jako každá jiná - pravidlo "každý sdílený údaj má vlastní
+tabulku" nemá výjimku pro krátké stringy. Zároveň se vrstva číselníků
+přepsala na registr deskriptorů (Services/Lookups/), takže přidání
+dalšího už neznamená doplnit šest switchů; volitelné sloupce
+(Description, SortOrder, IsLoadBalancer) hlásí sám deskriptor.
+
+BRÁNY: dotnet build 0/0, pnpm run test 79 zelených, build i lint čisté,
+obě zobrazení mřížky proklikaná a nascreenshotovaná.
+
+Ověřeno znovu 2026-08-03: pnpm run test = 79 zelených (před přidáním
+správy uživatelů, viz sekce výš).
 
 
 ---------------------------------------------------------------------
@@ -43,7 +115,8 @@ VÝSLEDKY BRAN:
   [x] pnpm run lint ................... čisté
   [x] dotnet ef migrations list ....... jediná 20260730194553_InitialCreate
   [x] seed počty ...................... všech 13 tabulek přesně dle plánu,
-        InstallationRepositories = 7 (ne 8, jak tvrdil starý plan.txt)
+        InstallationRepositories = 7 (ne 8, jak tvrdil starý plan.txt -
+        dnes docs/historie/plan-normalizace-prekonany.txt)
   [x] Swagger InstallationUpsertDto ... jen Id (rootPathId, physicalPathId,
         tagIds, repositoryIds), ŽÁDNÁ jména - pravidlo "v UI dropdown,
         nikdy volný text" drží i na úrovni kontraktu
@@ -360,18 +433,20 @@ ZÍTRA - PŘESNĚ ODKUD ZAČÍT
 DATOVÝ MODEL (výsledek analýzy - proč zrovna takhle)
 ---------------------------------------------------------------------
 
-  [PŘEKONÁNO 2026-07-30 - platný model je v README.md a v plánu 10]
+  [PŘEKONÁNO 2026-07-30 - platný model je v README.md a v plánu 10.
+   Původní znění téhle sekce (5 číselníků, Installations s pěti cizími
+   klíči, AppRepositories pod aplikací, celkem 8 tabulek) je smazané,
+   protože se opakovaně četlo jako aktuální. Kdo ho potřebuje, najde
+   ho v historii gitu.]
 
-  5 číselníků:  Machines, Applications, AppStages,
-                ProcessorArchitectures, DnsEndpoints
-  hlavní:       Installations (5x cizí klíč + vlastní hodnoty)
-  navíc:        AppRepositories (patří k Applications, ne k instalaci)
-                ApplicationUser (přihlašování)
-  = celkem 8 tabulek
-
-  Dnes: 8 číselníků (+ RootPaths, PhysicalPaths, Tags), AppRepositories
-  jako devátá sdílená hodnota vázaná M:N na instalaci, dvě vazební
-  tabulky = celkem 13 tabulek.
+  DNES: 10 číselníků - Machines, AppNames, AppStageNames,
+        ProcessorArchitectures, DnsEndpoints, RootPaths, PhysicalPaths,
+        Tags, AppRepositories, RepositoryTypes
+  hlavní: ApplicationInstallations (7x cizí klíč + vlastní datumy
+        a příznaky, žádné jméno vlastní nemá)
+  vazební: InstallationTags, InstallationRepositories (bez IsEnabled)
+  navíc:  ApplicationUser (přihlašování)
+  = celkem 14 tabulek
 
   Klíčový důvod pro DnsEndpoints jako vlastní tabulku: jedna DNS adresa
   může být load balancer před více stroji. V seed datech je přesně tenhle
@@ -387,12 +462,12 @@ DATOVÝ MODEL (výsledek analýzy - proč zrovna takhle)
 POZNÁMKY / VĚDOMÉ ODCHYLKY
 ---------------------------------------------------------------------
 
-  - Tags: zůstává text, ne vlastní tabulka (roadplan to sám značí jako
-    "Tbd: PHASE2"). Je to jeden sloupec, přesun bude levný.
-    -> NEPLATÍ od 2026-07-30: PHASE2 je hotová, Tags je vlastní tabulka
-       s vazbou M:N. Přesun skutečně levný nebyl - vynutil si i změnu
-       hledání a filtrů na .Any() místo joinu, protože join nafukoval
-       TotalCount.
+  - Tags JSOU vlastní tabulka s vazbou M:N (od 2026-07-30). Roadplan je
+    značil jako "Tbd: PHASE2" a tenhle log kdysi tvrdil, že zůstanou
+    textem a že přesun bude levný. Levný nebyl: vynutil si i změnu
+    hledání a filtrů na .Any() místo joinu, protože join nafukoval
+    TotalCount. Hlídá to test
+    Searching_by_tag_does_not_multiply_the_row_count.
   - CLAUDE-dotnet.md je ŠABLONA z jiného projektu (TrafficEvent/DATEX).
     Konvence se dodržely, ale tři věci nešlo převzít doslova a jsou
     zdůvodněné v plánech: Negotiate/Windows autentizace (Argus má

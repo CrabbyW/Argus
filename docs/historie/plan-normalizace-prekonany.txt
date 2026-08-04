@@ -1,7 +1,10 @@
 =====================================================================
  !!! PŘEKONÁNO - NEPOUŽÍVAT JAKO NÁVOD !!!
 =====================================================================
- Aktuální plán je ai-implementation-plan/10_schema_normalization.md.
+ Přesunuto sem z kořene repozitáře 2026-08-03 (bylo plan.txt), aby se
+ mrtvý dokument nepletl mezi živé. Aktuální plán je
+ ai-implementation-plan/10_schema_normalization.md, na něj navazují 11
+ a 12.
 
  Proč je tenhle soubor mrtvý:
 

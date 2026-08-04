@@ -1,5 +1,3 @@
-using Argus.Api.Database.Entities.Enums;
-
 namespace Argus.Api.Database.Entities;
 
 /// <summary>
@@ -22,7 +20,14 @@ public class AppRepository : ILookupEntity
     /// <summary>Stored in the <c>RepositoryUrl</c> column.</summary>
     public string Name { get; set; } = string.Empty;
 
-    public RepositoryType RepositoryType { get; set; } = RepositoryType.Unknown;
+    /// <summary>
+    /// Optional: null means the source-control system was never recorded. This replaced the
+    /// enum's <c>Unknown</c> member — an absent value is a null foreign key here, the same
+    /// convention <c>ApplicationInstallation.DnsEndpointId</c> already uses.
+    /// </summary>
+    public int? RepositoryTypeId { get; set; }
+
+    public RepositoryType? RepositoryType { get; set; }
 
     public string? Description { get; set; }
 

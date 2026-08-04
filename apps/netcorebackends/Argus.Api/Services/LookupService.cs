@@ -6,7 +6,7 @@ using log4net;
 namespace Argus.Api.Services;
 
 /// <summary>
-/// A façade over <see cref="LookupRegistry"/>. All nine kinds share one implementation
+/// A façade over <see cref="LookupRegistry"/>. All ten kinds share one implementation
 /// (<see cref="LookupHandler{TEntity}"/>); what differs per kind lives in its descriptor.
 /// </summary>
 public class LookupService : ILookupService
@@ -21,6 +21,24 @@ public class LookupService : ILookupService
     }
 
     private ILookupHandler HandlerFor(LookupKind kind) => LookupRegistry.Get(kind).CreateHandler(db);
+
+    public IReadOnlyList<LookupMetadataDto> GetMetadata() =>
+        LookupRegistry.All
+            .Select(descriptor => new LookupMetadataDto
+            {
+                // Lower-case so the client can drop it straight into a url. The route itself is
+                // case-insensitive, but a kind that arrives ready to use is one fewer thing for a
+                // caller to get subtly wrong.
+                Kind = descriptor.Kind.ToString().ToLowerInvariant(),
+                Label = descriptor.Label,
+                Singular = descriptor.Singular,
+                IsReadOnly = descriptor.IsReadOnly,
+                MaxNameLength = LookupModel.MaxNameLength(db, descriptor.EntityType),
+                HasDescription = descriptor.HasDescription,
+                HasSortOrder = descriptor.HasSortOrder,
+                HasLoadBalancer = descriptor.HasLoadBalancer
+            })
+            .ToList();
 
     public Task<IReadOnlyList<LookupItemDto>> GetAllAsync(LookupKind kind) =>
         HandlerFor(kind).GetAllAsync();

@@ -1,5 +1,7 @@
 using Argus.Api.Database;
 using Argus.Api.Database.Entities;
+using Argus.Api.Database.Interceptors;
+using Argus.Api.Services;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 
@@ -43,6 +45,8 @@ internal sealed class TestDb : IDisposable
     public const int RootSlash = 1;
     public const int DiskDefault = 1;
     public const int TagWeb = 1;
+    public const int RepoTypeGit = 1;
+    public const int RepoTypeSvn = 2;
 
     public static TestDb CreateSeeded()
     {
@@ -73,6 +77,10 @@ internal sealed class TestDb : IDisposable
         db.PhysicalPaths.Add(new PhysicalPath { Id = DiskDefault, Name = @"c:\inetpub\callcenter" });
 
         db.Tags.Add(new Tag { Id = TagWeb, Name = "web" });
+
+        db.RepositoryTypes.AddRange(
+            new RepositoryType { Id = RepoTypeGit, Name = "Git" },
+            new RepositoryType { Id = RepoTypeSvn, Name = "Svn" });
 
         db.SaveChanges();
 
@@ -121,6 +129,22 @@ internal sealed class TestDb : IDisposable
     /// context that did the writing, so a stale change tracker cannot make a test pass.
     /// </summary>
     public ArgusDbContext NewContext() => new(options);
+
+    /// <summary>
+    /// A context with the journal interceptor attached, as the running app builds it, recording
+    /// <paramref name="username"/> as the actor.
+    ///
+    /// Separate from <see cref="NewContext"/> so every existing test keeps writing without a
+    /// journal — those tests are about the installation model, and a second table filling up
+    /// behind them would only make their assertions harder to read.
+    /// </summary>
+    public ArgusDbContext NewJournalingContext(string username = "tester") =>
+        new(new DbContextOptionsBuilder<ArgusDbContext>()
+            .UseSqlite(connection)
+            .AddInterceptors(new EntityJournalInterceptor(new FixedUser(username)))
+            .Options);
+
+    private sealed record FixedUser(string Username) : ICurrentUserAccessor;
 
     public void Dispose()
     {

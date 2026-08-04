@@ -77,9 +77,13 @@ public class InstallationService : IInstallationService
 
         // Any(), never a join: CountAsync below runs on this same query, and a join over the
         // link table would return one row per matching tag and inflate TotalCount.
-        if (filter.TagId.HasValue)
+        // Several tags are matched with OR: any one of them is enough. Distinct() because a
+        // repeated Id would otherwise widen the IN list without changing the answer.
+        if (filter.TagIds.Count > 0)
         {
-            query = query.Where(x => x.InstallationTags.Any(link => link.TagId == filter.TagId.Value));
+            var tagIds = filter.TagIds.Distinct().ToList();
+
+            query = query.Where(x => x.InstallationTags.Any(link => tagIds.Contains(link.TagId)));
         }
 
         if (filter.RepositoryId.HasValue)
@@ -320,7 +324,12 @@ public class InstallationService : IInstallationService
                     // repository back in a PUT would unlink it from its sibling installations,
                     // because AppRepositoryService.UpdateAsync treats InstallationIds as the
                     // complete target state.
-                    .ThenInclude(repo => repo.InstallationRepositories);
+                    .ThenInclude(repo => repo.InstallationRepositories)
+
+            // Second branch off the same repository, for the type's display name.
+            .Include(x => x.InstallationRepositories)
+                .ThenInclude(link => link.AppRepository)
+                    .ThenInclude(repo => repo.RepositoryType);
     }
 
     /// <summary>

@@ -1,6 +1,7 @@
 using System.Text;
 using Argus.Api.Configuration;
 using Argus.Api.Database;
+using Argus.Api.Database.Interceptors;
 using Argus.Api.Middleware;
 using Argus.Api.Services;
 using log4net;
@@ -22,6 +23,7 @@ var connectionString = builder.Configuration.GetConnectionString("ArgusDatabase"
         "Connection string 'ArgusDatabase' is missing. Copy appsettings.Example.json to appsettings.Development.json.");
 
 builder.Services.Configure<JwtOptions>(builder.Configuration.GetSection(JwtOptions.SectionName));
+builder.Services.Configure<AuditLogOptions>(builder.Configuration.GetSection(AuditLogOptions.SectionName));
 
 var jwtOptions = builder.Configuration.GetSection(JwtOptions.SectionName).Get<JwtOptions>() ?? new JwtOptions();
 
@@ -32,13 +34,30 @@ if (string.IsNullOrWhiteSpace(jwtOptions.SigningKey) || jwtOptions.SigningKey.Le
 }
 
 // --- Persistence ---
-builder.Services.AddDbContext<ArgusDbContext>(options => options.UseSqlServer(connectionString));
+// The journal interceptor is scoped like the context it hangs on, because the username it records
+// belongs to the request.
+builder.Services.AddHttpContextAccessor();
+builder.Services.AddScoped<ICurrentUserAccessor, CurrentUserAccessor>();
+builder.Services.AddScoped<EntityJournalInterceptor>();
+
+builder.Services.AddDbContext<ArgusDbContext>((serviceProvider, options) => options
+    .UseSqlServer(connectionString)
+    .AddInterceptors(serviceProvider.GetRequiredService<EntityJournalInterceptor>()));
 
 // --- Application services ---
 builder.Services.AddScoped<IInstallationService, InstallationService>();
 builder.Services.AddScoped<ILookupService, LookupService>();
 builder.Services.AddScoped<IAppRepositoryService, AppRepositoryService>();
 builder.Services.AddScoped<IAuthService, AuthService>();
+builder.Services.AddScoped<IUserService, UserService>();
+builder.Services.AddScoped<IEntityJournalService, EntityJournalService>();
+
+// Stateless and file-backed, so one instance serves every request.
+builder.Services.AddSingleton<ILogFileService, LogFileService>();
+
+// Log files are written by log4net and expired by this: an age rule in days, which
+// log4net's file-count rolling cannot express.
+builder.Services.AddHostedService<LogRetentionService>();
 
 // --- Authentication (username + password -> JWT; no Windows/Negotiate in Argus) ---
 builder.Services
@@ -105,6 +124,10 @@ builder.Services.AddSwaggerGen(options =>
 
 var app = builder.Build();
 
+// Outermost, so the status it records is the one the client actually received — including
+// the 500 the exception handler below turns an unhandled exception into.
+app.UseMiddleware<ActionAuditLoggingMiddleware>();
+
 // Must sit before everything else so it can catch their exceptions.
 app.UseMiddleware<GlobalExceptionHandlerMiddleware>();
 
@@ -127,7 +150,10 @@ if (builder.Configuration.GetValue("Database:MigrateAndSeedOnStartup", true))
     var demoPassword = builder.Configuration["Seed:AdminPassword"]
         ?? throw new InvalidOperationException(
             "Seed:AdminPassword is missing. Set it in configuration, or turn off Database:MigrateAndSeedOnStartup.");
-    await DbSeeder.MigrateAndSeedAsync(app.Services, demoPassword);
+    // How many installations the demo grid should hold. The seeder only ever tops the table up
+    // to this number, so lowering it later deletes nothing; 0 keeps just the hand-written rows.
+    var demoInstallationCount = builder.Configuration.GetValue("Seed:InstallationCount", 200);
+    await DbSeeder.MigrateAndSeedAsync(app.Services, demoPassword, demoInstallationCount);
 }
 
 logger.Info("Argus API started.");

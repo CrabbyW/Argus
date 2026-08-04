@@ -1,5 +1,4 @@
 using System.ComponentModel.DataAnnotations;
-using Argus.Api.Database.Entities.Enums;
 
 namespace Argus.Api.WebApiPoco.Installations;
 
@@ -19,7 +18,11 @@ public class AppRepositoryUpsertDto
     /// </summary>
     public List<int> InstallationIds { get; set; } = new();
 
-    public RepositoryType RepositoryType { get; set; } = RepositoryType.Unknown;
+    /// <summary>
+    /// Id into the RepositoryTypes lookup. Null is allowed and means "not recorded" — the UI
+    /// offers a dropdown, never free text, exactly like every other Id-backed field.
+    /// </summary>
+    public int? RepositoryTypeId { get; set; }
 
     [StringLength(512)]
     public string? Description { get; set; }

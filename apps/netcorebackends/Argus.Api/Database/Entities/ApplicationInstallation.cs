@@ -41,6 +41,9 @@ public class ApplicationInstallation
     public ICollection<InstallationRepository> InstallationRepositories { get; set; } =
         new List<InstallationRepository>();
 
+    /// <summary>Its change history — see <see cref="EntityJournalEntry"/>. Append-only.</summary>
+    public ICollection<EntityJournalEntry> JournalEntries { get; set; } = new List<EntityJournalEntry>();
+
     // --- Values genuinely belonging to this one installation ---
 
     /// <summary>Business flag: is this deployment currently serving traffic.</summary>

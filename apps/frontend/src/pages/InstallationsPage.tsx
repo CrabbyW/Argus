@@ -17,6 +17,8 @@ import {
   TableHeader,
   TableHeaderCell,
   TableRow,
+  Tag,
+  TagGroup,
   Text,
   Title3,
   Tooltip,
@@ -27,39 +29,55 @@ import {
 import {
   AddRegular,
   ArrowClockwiseRegular,
+  ChevronDownRegular,
+  ChevronUpRegular,
   DeleteRegular,
   EditRegular,
   EyeRegular,
+  FilterRegular,
 } from '@fluentui/react-icons';
 import { api } from '../api/client';
 import type { DataViewOutput, InstallationFilter, InstallationListItem } from '../api/types';
-import { useLookups } from '../hooks/useLookups';
+import { itemsOf, useLookups } from '../hooks/useLookups';
 import { useAppToast } from '../hooks/useAppToast';
 import { InstallationDialog } from '../components/InstallationDialog';
-import { InstallationDetailDialog } from '../components/InstallationDetailDialog';
+import { InstallationDetailDrawer } from '../components/InstallationDetailDrawer';
+import { LookupPickerDrawer } from '../components/LookupPickerDrawer';
 import { ConfirmDialog } from '../components/ConfirmDialog';
+import { useSheetStyles } from '../styles/sheetStyles';
 
 /**
- * Fluent's Table is `table-layout: fixed`, so column widths come from here and nowhere else.
- * Left to itself it gives eleven columns an equal eleventh of the container, which is narrower
- * than a Windows path — and a table cell does not clip, so the text runs across its neighbours.
- * The order matches the header row; the sum is the table's minimum width.
+ * The grid shows resolved values, never references.
+ *
+ * The fact table stores foreign keys — that is the roadplan's normalisation rule and it is right
+ * — but a key is not an answer. The success criteria are questions in words ("which machines
+ * serve paha.ga.local?"), and `2` does not answer one, so every reference is displayed as the
+ * lookup value it points at. The Id itself is not shown either: nobody operating a server asks
+ * for installation 14, they ask for RC0 of CallCenter on GAIIS2.
+ *
+ * Fluent's Table is `table-layout: fixed`, so these widths are the only thing setting column
+ * size. Sized against the real seed values at 1600px — the longest of each (Data Exchange WebApi,
+ * https://vipsprava.1220.cz, c:\inetpub\callcenter.rc0) fits without truncating, and the total
+ * still leaves Active and Actions on screen rather than off the right edge.
  */
 const COLUMNS = [
-  { key: 'machine', width: 120 },
-  { key: 'application', width: 140 },
-  { key: 'stage', width: 85 },
-  { key: 'arch', width: 65 },
-  { key: 'dns', width: 145 },
-  { key: 'rootPath', width: 175 },
-  { key: 'physicalPath', width: 215 },
+  // The row-number gutter, as on a spreadsheet: position in the result, not the record's Id.
+  { key: 'rowNumber', width: 44 },
+  { key: 'machine', width: 135 },
+  { key: 'application', width: 175 },
+  { key: 'stage', width: 90 },
+  { key: 'arch', width: 60 },
+  { key: 'dns', width: 195 },
+  { key: 'rootPath', width: 150 },
+  { key: 'physicalPath', width: 195 },
   { key: 'tags', width: 150 },
-  { key: 'valid', width: 170 },
+  { key: 'valid', width: 145 },
   { key: 'active', width: 85 },
-  { key: 'actions', width: 110 },
+  { key: 'actions', width: 105 },
 ];
 
-const TABLE_MIN_WIDTH = COLUMNS.reduce((total, column) => total + column.width, 0);
+const widthOf = (columns: { width: number }[]) =>
+  columns.reduce((total, column) => total + column.width, 0);
 
 const useStyles = makeStyles({
   root: { display: 'flex', flexDirection: 'column', rowGap: '20px' },
@@ -72,25 +90,46 @@ const useStyles = makeStyles({
     backgroundColor: tokens.colorNeutralBackground1,
     border: `1px solid ${tokens.colorNeutralStroke2}`,
     borderRadius: tokens.borderRadiusMedium,
-    padding: '16px',
+    padding: '12px',
     display: 'flex',
     flexDirection: 'column',
-    rowGap: '12px',
+    rowGap: '10px',
   },
+  // The everyday row: search plus the facets that answer the roadplan's three headline questions.
+  // Everything rarer lives behind the "More filters" disclosure so the grid starts near the top.
+  filterBar: { display: 'flex', alignItems: 'flex-end', gap: '8px', flexWrap: 'wrap' },
+  searchField: { flexGrow: 1, minWidth: '220px' },
   // Every control gets a label, so a narrow window drops columns instead of jumbling them.
   filterGrid: {
     display: 'grid',
     gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
     gap: '12px',
   },
-  // Fluent gives Dropdown a 250px minimum, which is wider than a grid track — the control then
-  // refuses to shrink and the whole row pushes out past the card's right edge.
   dropdown: { minWidth: 0 },
+  // A facet in the everyday row must not stretch to fill the leftover space; the search box does.
+  barFacet: { width: '160px' },
+  // Shaped like the Dropdown it replaced — value on the left, chevron on the right — so the row
+  // still reads as a row of form controls rather than a row of buttons.
+  facetButton: {
+    width: '100%',
+    justifyContent: 'space-between',
+    fontWeight: tokens.fontWeightRegular,
+  },
+  facetValue: { overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' },
   filterFooter: { display: 'flex', alignItems: 'center', gap: '16px', flexWrap: 'wrap' },
+  // Collapsed filters must never hide an active one, or the grid silently lies about its
+  // contents. Anything set behind the disclosure comes back out here as a dismissable chip.
+  chipRow: { display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' },
+  advancedPanel: {
+    borderTop: `1px solid ${tokens.colorNeutralStroke2}`,
+    paddingTop: '12px',
+    display: 'flex',
+    flexDirection: 'column',
+    rowGap: '12px',
+  },
 
   tableWrapper: { overflowX: 'auto', position: 'relative' },
-  // Narrower than this the columns would start colliding again, so the wrapper scrolls instead.
-  table: { minWidth: `${TABLE_MIN_WIDTH}px` },
+  // The sheet ruling itself comes from useSheetStyles; the width is set per view below.
   // A path is longer than any column that still leaves room for the other ten. Clip it and keep
   // the full value on hover.
   truncate: { overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' },
@@ -113,8 +152,28 @@ const useStyles = makeStyles({
     ':focus-visible': { outline: `2px solid ${tokens.colorStrokeFocus2}`, outlineOffset: '2px' },
   },
   mono: { fontFamily: tokens.fontFamilyMonospace, fontSize: tokens.fontSizeBase200 },
+
+  // The row is the control that opens the detail, so it has to look like one and take focus
+  // like one. No colour of its own — the hover fill is the sheet's, already defined.
+  selectableRow: {
+    cursor: 'pointer',
+    ':focus-visible': { outline: `2px solid ${tokens.colorStrokeFocus2}`, outlineOffset: '-2px' },
+  },
+  // Which row the open drawer belongs to. A left marker rather than a fill, because the sheet
+  // already uses fills for the header and gutter and a third one would read as another band.
+  selectedRow: {
+    '& td': { backgroundColor: tokens.colorNeutralBackground1Selected },
+    '& td:first-child': { boxShadow: `inset 2px 0 0 0 ${tokens.colorBrandStroke1}` },
+  },
+
   // Tags are a set, not a sentence — badges wrap inside the cell rather than running past it.
-  tagList: { display: 'flex', flexWrap: 'wrap', gap: '4px' },
+  tagList: { display: 'flex', flexWrap: 'wrap', gap: '4px', minWidth: 0 },
+  // A tag name can be longer than the column ("incoming-postal-web"). Without a cap the badge
+  // keeps its one-line height while the text inside wraps, so the words spill out of the pill and
+  // across the rows above and below. Clipped to the column width instead; the cell's title
+  // attribute still carries the full list.
+  tagBadge: { maxWidth: '100%', minWidth: 0 },
+  tagText: { display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' },
   nowrap: { whiteSpace: 'nowrap' },
   rowActions: { display: 'flex', gap: '4px' },
   // A destructive action must not look identical to Edit sitting next to it.
@@ -128,15 +187,23 @@ const useStyles = makeStyles({
   footer: { display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' },
 });
 
+const DEFAULT_SORT = 'machineName';
+
+/**
+ * Rows per page. A sheet is read by scanning it, so the page is sized to be scrolled rather than
+ * paged through — 75 covers most of a real inventory in one or two pages.
+ *
+ * Declared above `emptyPage`, which reads it while this module is still being evaluated.
+ */
+const DEFAULT_PAGE_SIZE = 75;
+
 const emptyPage: DataViewOutput<InstallationListItem> = {
   items: [],
   totalCount: 0,
   pageNumber: 1,
-  pageSize: 25,
+  pageSize: DEFAULT_PAGE_SIZE,
   totalPages: 0,
 };
-
-const DEFAULT_SORT = 'machineName';
 
 /**
  * The grid state lives in the URL, so a filtered view can be bookmarked, shared and reached
@@ -152,7 +219,7 @@ function readFilter(params: URLSearchParams): InstallationFilter {
 
   return {
     pageNumber: Number(params.get('page')) || 1,
-    pageSize: Number(params.get('size')) || 25,
+    pageSize: Number(params.get('size')) || DEFAULT_PAGE_SIZE,
     sortBy: params.get('sort') ?? DEFAULT_SORT,
     sortDirection: params.get('dir') === 'desc' ? 'desc' : 'asc',
     searchTerm: params.get('q') ?? '',
@@ -163,7 +230,12 @@ function readFilter(params: URLSearchParams): InstallationFilter {
     dnsEndpointId: num('dns'),
     rootPathId: num('root'),
     physicalPathId: num('ppath'),
-    tagId: num('tag'),
+    // Several tags share one parameter, comma-separated: "tag=2,5". A repeated key would work
+    // too, but one readable value keeps a shared link legible.
+    tagIds: (params.get('tag') ?? '')
+      .split(',')
+      .map((value) => Number(value))
+      .filter((value) => Number.isFinite(value) && value > 0),
     repositoryId: num('repo'),
     isActive: active === null ? null : active === 'true',
     validFrom: params.get('from'),
@@ -188,7 +260,7 @@ function writeFilter(filter: InstallationFilter): URLSearchParams {
   set('dns', filter.dnsEndpointId);
   set('root', filter.rootPathId);
   set('ppath', filter.physicalPathId);
-  set('tag', filter.tagId);
+  set('tag', filter.tagIds?.length ? filter.tagIds.join(',') : null);
   set('repo', filter.repositoryId);
   set('from', filter.validFrom);
   set('to', filter.validTo);
@@ -198,7 +270,7 @@ function writeFilter(filter: InstallationFilter): URLSearchParams {
   if (filter.sortBy && filter.sortBy !== DEFAULT_SORT) set('sort', filter.sortBy);
   if (filter.sortDirection === 'desc') set('dir', 'desc');
   if ((filter.pageNumber ?? 1) > 1) set('page', filter.pageNumber);
-  if ((filter.pageSize ?? 25) !== 25) set('size', filter.pageSize);
+  if ((filter.pageSize ?? DEFAULT_PAGE_SIZE) !== DEFAULT_PAGE_SIZE) set('size', filter.pageSize);
 
   return params;
 }
@@ -215,13 +287,14 @@ const SORTABLE: Record<string, string> = {
 
 export function InstallationsPage() {
   const styles = useStyles();
+  const sheet = useSheetStyles();
   const navigate = useNavigate();
   const location = useLocation();
   const toast = useAppToast();
   const [searchParams, setSearchParams] = useSearchParams();
   const { id: routeId } = useParams();
 
-  const { lookups, error: lookupsError, reload: reloadLookups } = useLookups();
+  const { lookups, metadata: lookupMetadata, error: lookupsError, reload: reloadLookups } = useLookups();
 
   const filter = useMemo(() => readFilter(searchParams), [searchParams]);
 
@@ -230,6 +303,21 @@ export function InstallationsPage() {
   const [error, setError] = useState<string | null>(null);
   const [pendingDelete, setPendingDelete] = useState<InstallationListItem | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [showAdvanced, setShowAdvanced] = useState(false);
+
+  /**
+   * Which lookup the picker drawer is open on, or null. The whole descriptor is kept rather than
+   * a key: the drawer needs the label, the current value and where to put the answer, and
+   * rebuilding that from a key would mean a second switch over the same list of facets.
+   */
+  const [picker, setPicker] = useState<{
+    label: string;
+    clearLabel: string;
+    kind: Parameters<typeof itemsOf>[1];
+    selected: number[];
+    multiple: boolean;
+    onApply: (ids: number[]) => void;
+  } | null>(null);
 
   // Typing stays local and is written to the URL on a delay, so the address bar (and history)
   // is not rewritten on every keystroke.
@@ -317,48 +405,96 @@ export function InstallationsPage() {
     }
   }
 
-  function sortableHeader(column: string) {
+  function sortableHeader(column: string, label?: string) {
     const isSorted = filter.sortBy === column;
     const direction = isSorted ? (filter.sortDirection === 'desc' ? 'descending' : 'ascending') : 'none';
 
     return (
-      <TableHeaderCell key={column} aria-sort={direction} className={styles.nowrap}>
+      <TableHeaderCell key={column} aria-sort={direction} className={sheet.headerCell}>
         <button
           type="button"
           className={styles.sortButton}
           onClick={() => toggleSort(column)}
           aria-label={`Sort by ${SORTABLE[column]}`}
         >
-          {SORTABLE[column]}
+          {label ?? SORTABLE[column]}
           {isSorted && <span aria-hidden>{filter.sortDirection === 'desc' ? '↓' : '↑'}</span>}
         </button>
       </TableHeaderCell>
     );
   }
 
+  /**
+   * A facet is a field that opens the value picker, not a dropdown menu.
+   *
+   * It still reads as a form control — label above, current value in the box, chevron on the
+   * right — but the values themselves are chosen in a drawer, which can hold a search box and a
+   * few hundred rows without any of it hanging off the edge of the window.
+   */
   function facet(
     label: string,
-    placeholder: string,
-    items: { id: number; name: string }[],
+    clearLabel: string,
+    kind: Parameters<typeof itemsOf>[1],
     selectedId: number | null | undefined,
     onSelect: (id: number | null) => void,
+    fieldClass?: string,
   ) {
+    return pickerField(
+      label,
+      clearLabel,
+      kind,
+      selectedId ? [selectedId] : [],
+      false,
+      (ids) => onSelect(ids[0] ?? null),
+      fieldClass,
+    );
+  }
+
+  /** The same field, for the one facet that takes several values at once. */
+  function multiFacet(
+    label: string,
+    clearLabel: string,
+    kind: Parameters<typeof itemsOf>[1],
+    selected: number[],
+    onApply: (ids: number[]) => void,
+    fieldClass?: string,
+  ) {
+    return pickerField(label, clearLabel, kind, selected, true, onApply, fieldClass);
+  }
+
+  function pickerField(
+    label: string,
+    clearLabel: string,
+    kind: Parameters<typeof itemsOf>[1],
+    selected: number[],
+    multiple: boolean,
+    onApply: (ids: number[]) => void,
+    fieldClass?: string,
+  ) {
+    // Two or more values are summarised rather than listed: the field is 160px wide and the
+    // chips under the bar already spell the selection out in full.
+    const shown =
+      selected.length === 0
+        ? null
+        : selected.length === 1
+          ? nameOf(kind, selected[0])
+          : `${selected.length} selected`;
+
     return (
-      <Field label={label}>
-        <Dropdown
-          className={styles.dropdown}
-          placeholder={placeholder}
-          selectedOptions={selectedId ? [String(selectedId)] : ['']}
-          value={items.find((item) => item.id === selectedId)?.name ?? ''}
-          onOptionSelect={(_, data) => onSelect(data.optionValue ? Number(data.optionValue) : null)}
+      <Field label={label} className={fieldClass}>
+        <Button
+          className={styles.facetButton}
+          onClick={() => setPicker({ label, clearLabel, kind, selected, multiple, onApply })}
+          aria-haspopup="dialog"
+          // Its visible text is the value alone — half the facets read as a button called "All"
+          // otherwise, with nothing to say which filter they are.
+          aria-label={`${label}: ${shown ?? 'All'}`}
         >
-          <Option value="">{placeholder}</Option>
-          {items.map((item) => (
-            <Option key={item.id} value={String(item.id)}>
-              {item.name}
-            </Option>
-          ))}
-        </Dropdown>
+          <span className={mergeClasses(styles.facetValue, shown ? undefined : styles.muted)}>
+            {shown ?? 'All'}
+          </span>
+          <ChevronDownRegular />
+        </Button>
       </Field>
     );
   }
@@ -367,8 +503,148 @@ export function InstallationsPage() {
     ? ''
     : String(filter.isActive);
 
+  function nameOf(kind: Parameters<typeof itemsOf>[1], id: number) {
+    return itemsOf(lookups, kind).find((item) => item.id === id)?.name ?? `#${id}`;
+  }
+
+  /**
+   * One entry per filter that is currently set. These render as dismissable chips beside the
+   * Filters button, so a filtered grid always says why it is filtered — with every control now
+   * inside a drawer, this row is the only thing standing between a filtered view and a reader
+   * who assumes they are looking at everything.
+   */
+  const activeChips: { key: string; label: string; clear: () => void }[] = [];
+
+  if (filter.searchTerm) {
+    activeChips.push({
+      key: 'search',
+      label: `Search: ${filter.searchTerm}`,
+      clear: () => {
+        lastPushedSearch.current = '';
+        setSearchInput('');
+        patchFilter({ searchTerm: '' });
+      },
+    });
+  }
+  if (filter.machineId) {
+    activeChips.push({
+      key: 'machine',
+      label: `Machine: ${nameOf('machines', filter.machineId)}`,
+      clear: () => patchFilter({ machineId: null }),
+    });
+  }
+  if (filter.appNameId) {
+    activeChips.push({
+      key: 'app',
+      label: `Application: ${nameOf('appnames', filter.appNameId)}`,
+      clear: () => patchFilter({ appNameId: null }),
+    });
+  }
+  if (filter.appStageNameId) {
+    activeChips.push({
+      key: 'stage',
+      label: `Stage: ${nameOf('appstagenames', filter.appStageNameId)}`,
+      clear: () => patchFilter({ appStageNameId: null }),
+    });
+  }
+  if (filter.dnsEndpointId) {
+    activeChips.push({
+      key: 'dns',
+      label: `DNS endpoint: ${nameOf('dnsendpoints', filter.dnsEndpointId)}`,
+      clear: () => patchFilter({ dnsEndpointId: null }),
+    });
+  }
+  if (filter.processorArchitectureId) {
+    activeChips.push({
+      key: 'arch',
+      label: `Architecture: ${nameOf('processorarchitectures', filter.processorArchitectureId)}`,
+      clear: () => patchFilter({ processorArchitectureId: null }),
+    });
+  }
+  if (filter.rootPathId) {
+    activeChips.push({
+      key: 'root',
+      label: `Root path: ${nameOf('rootpaths', filter.rootPathId)}`,
+      clear: () => patchFilter({ rootPathId: null }),
+    });
+  }
+  if (filter.physicalPathId) {
+    activeChips.push({
+      key: 'ppath',
+      label: `Physical path: ${nameOf('physicalpaths', filter.physicalPathId)}`,
+      clear: () => patchFilter({ physicalPathId: null }),
+    });
+  }
+  if (filter.tagIds?.length) {
+    activeChips.push({
+      key: 'tag',
+      label:
+        filter.tagIds.length === 1
+          ? `Tag: ${nameOf('tags', filter.tagIds[0])}`
+          : `Tags: ${filter.tagIds.map((id) => nameOf('tags', id)).join(', ')}`,
+      clear: () => patchFilter({ tagIds: [] }),
+    });
+  }
+  if (filter.repositoryId) {
+    activeChips.push({
+      key: 'repo',
+      label: `Repository: ${nameOf('apprepositories', filter.repositoryId)}`,
+      clear: () => patchFilter({ repositoryId: null }),
+    });
+  }
+  if (filter.isActive !== null && filter.isActive !== undefined) {
+    activeChips.push({
+      key: 'active',
+      label: `Serving: ${filter.isActive ? 'Active' : 'Inactive'}`,
+      clear: () => patchFilter({ isActive: null }),
+    });
+  }
+  if (filter.validFrom) {
+    activeChips.push({
+      key: 'from',
+      label: `Installed from: ${filter.validFrom}`,
+      clear: () => patchFilter({ validFrom: null }),
+    });
+  }
+  if (filter.validTo) {
+    activeChips.push({
+      key: 'to',
+      label: `Installed to: ${filter.validTo}`,
+      clear: () => patchFilter({ validTo: null }),
+    });
+  }
+  if (filter.includeDisabled) {
+    activeChips.push({
+      key: 'disabled',
+      label: 'Including decommissioned',
+      clear: () => patchFilter({ includeDisabled: false }),
+    });
+  }
+
+  /** What the disclosure is hiding: the chips for the four facets in the bar are not counted. */
+  const advancedCount = activeChips.filter(
+    (chip) => !['search', 'machine', 'app', 'stage', 'dns'].includes(chip.key),
+  ).length;
+
+  function clearFilters() {
+    lastPushedSearch.current = '';
+    setSearchInput('');
+    setSearchParams(new URLSearchParams());
+  }
+
   const dialogMode = routeId === 'new' ? 'create' : routeId ? 'edit' : null;
   const isDetailRoute = location.pathname.endsWith('/view');
+
+  /**
+   * The selection is the URL, not component state. A drawer that outlives a Back press, or that
+   * cannot be linked to, would be a different thing from every other piece of grid state here —
+   * and the filters already work this way.
+   */
+  const selectedId = isDetailRoute && routeId && routeId !== 'new' ? Number(routeId) : null;
+
+  function openDetail(id: number) {
+    navigate({ pathname: `/installations/${id}/view`, search: searchParams.toString() });
+  }
 
   return (
     <div className={styles.root}>
@@ -403,8 +679,8 @@ export function InstallationsPage() {
       )}
 
       <div className={styles.filterCard}>
-        <div className={styles.filterGrid}>
-          <Field label="Search">
+        <div className={styles.filterBar}>
+          <Field label="Search" className={styles.searchField}>
             <Input
               placeholder="Machine, app, path, DNS, tags..."
               value={searchInput}
@@ -412,101 +688,153 @@ export function InstallationsPage() {
             />
           </Field>
 
-          {facet('Machine', 'All machines', lookups.machines, filter.machineId, (id) =>
-            patchFilter({ machineId: id }),
+          {/* These four carry the roadplan's headline questions — which machines serve
+              paha.ga.local, where RC0 of CallCenter runs, what else is on a given machine — so
+              they stay one click away. The rest is a click further. */}
+          {facet('Machine', 'All machines', 'machines', filter.machineId, (id) =>
+            patchFilter({ machineId: id }), styles.barFacet,
           )}
-          {facet('Application', 'All applications', lookups.appNames, filter.appNameId, (id) =>
-            patchFilter({ appNameId: id }),
+          {facet('Application', 'All applications', 'appnames', filter.appNameId, (id) =>
+            patchFilter({ appNameId: id }), styles.barFacet,
           )}
-          {facet('Stage', 'All stages', lookups.appStageNames, filter.appStageNameId, (id) =>
-            patchFilter({ appStageNameId: id }),
+          {facet('Stage', 'All stages', 'appstagenames', filter.appStageNameId, (id) =>
+            patchFilter({ appStageNameId: id }), styles.barFacet,
           )}
-          {/* The roadplan's headline question is "which machines serve paha.ga.local?" —
-              this facet answers it directly instead of relying on the search box. */}
-          {facet('DNS endpoint', 'All endpoints', lookups.dnsEndpoints, filter.dnsEndpointId, (id) =>
-            patchFilter({ dnsEndpointId: id }),
-          )}
-          {facet(
-            'Architecture',
-            'All architectures',
-            lookups.processorArchitectures,
-            filter.processorArchitectureId,
-            (id) => patchFilter({ processorArchitectureId: id }),
-          )}
-          {facet('Root path', 'All root paths', lookups.rootPaths, filter.rootPathId, (id) =>
-            patchFilter({ rootPathId: id }),
-          )}
-          {facet(
-            'Physical path',
-            'All physical paths',
-            lookups.physicalPaths,
-            filter.physicalPathId,
-            (id) => patchFilter({ physicalPathId: id }),
-          )}
-          {facet('Tag', 'All tags', lookups.tags, filter.tagId, (id) =>
-            patchFilter({ tagId: id }),
-          )}
-          {facet('Repository', 'All repositories', lookups.repositories, filter.repositoryId, (id) =>
-            patchFilter({ repositoryId: id }),
+          {facet('DNS endpoint', 'All endpoints', 'dnsendpoints', filter.dnsEndpointId, (id) =>
+            patchFilter({ dnsEndpointId: id }), styles.barFacet,
           )}
 
-          <Field label="Serving">
-            <Dropdown
-              className={styles.dropdown}
-              placeholder="Any"
-              selectedOptions={[activeValue]}
-              value={activeValue === '' ? 'Any' : activeValue === 'true' ? 'Active' : 'Inactive'}
-              onOptionSelect={(_, data) =>
-                patchFilter({ isActive: data.optionValue === '' ? null : data.optionValue === 'true' })
-              }
-            >
-              <Option value="">Any</Option>
-              <Option value="true">Active</Option>
-              <Option value="false">Inactive</Option>
-            </Dropdown>
-          </Field>
+          <Button
+            icon={<FilterRegular />}
+            iconPosition="before"
+            onClick={() => setShowAdvanced((open) => !open)}
+            aria-expanded={showAdvanced}
+          >
+            More filters{advancedCount > 0 ? ` (${advancedCount})` : ''}
+            {showAdvanced ? <ChevronUpRegular /> : <ChevronDownRegular />}
+          </Button>
 
-          {/* Matches on overlap, so an installation spanning the window counts even if it
-              started earlier. */}
-          <Field label="Installed from">
-            <Input
-              type="date"
-              value={filter.validFrom ?? ''}
-              onChange={(_, data) => patchFilter({ validFrom: data.value || null })}
-            />
-          </Field>
-
-          <Field label="Installed to">
-            <Input
-              type="date"
-              value={filter.validTo ?? ''}
-              onChange={(_, data) => patchFilter({ validTo: data.value || null })}
-            />
-          </Field>
-        </div>
-
-        <div className={styles.filterFooter}>
-          {/* Decommissioned rows are soft-deleted, so a past-date query cannot see them
-              without this. Off by default to keep the everyday grid clean. */}
-          <Checkbox
-            label="Include decommissioned"
-            checked={filter.includeDisabled ?? false}
-            onChange={(_, data) => patchFilter({ includeDisabled: Boolean(data.checked) })}
-          />
-          <div className={styles.spacer} />
+          {/* Named for its result, not its mechanism: the button is pressed to see everything
+              again, and "Show all" says that where "Clear" only described what it did to the
+              controls. */}
           <Button
             appearance="subtle"
-            disabled={searchParams.toString() === ''}
-            onClick={() => {
-              lastPushedSearch.current = '';
-              setSearchInput('');
-              setSearchParams(new URLSearchParams());
-            }}
+            disabled={writeFilter(filter).toString() === ''}
+            onClick={clearFilters}
           >
-            Clear filters
+            Show all
           </Button>
         </div>
+
+        {activeChips.length > 0 && (
+          <div className={styles.chipRow}>
+            <TagGroup
+              onDismiss={(_, data) => {
+                activeChips.find((chip) => chip.key === data.value)?.clear();
+              }}
+              aria-label="Active filters"
+            >
+              {activeChips.map((chip) => (
+                <Tag key={chip.key} value={chip.key} dismissible size="small">
+                  {chip.label}
+                </Tag>
+              ))}
+            </TagGroup>
+          </div>
+        )}
+
+        {showAdvanced && (
+          <div className={styles.advancedPanel}>
+            <div className={styles.filterGrid}>
+              {facet(
+                'Architecture',
+                'All architectures',
+                'processorarchitectures',
+                filter.processorArchitectureId,
+                (id) => patchFilter({ processorArchitectureId: id }),
+              )}
+              {facet('Root path', 'All root paths', 'rootpaths', filter.rootPathId, (id) =>
+                patchFilter({ rootPathId: id }),
+              )}
+              {facet(
+                'Physical path',
+                'All physical paths',
+                'physicalpaths',
+                filter.physicalPathId,
+                (id) => patchFilter({ physicalPathId: id }),
+              )}
+              {/* The one multi-select facet: asking about "web or service" is the normal tag
+                  question, where one machine or one stage is not. */}
+              {multiFacet('Tags', 'All tags', 'tags', filter.tagIds ?? [], (ids) =>
+                patchFilter({ tagIds: ids }),
+              )}
+              {facet('Repository', 'All repositories', 'apprepositories', filter.repositoryId, (id) =>
+                patchFilter({ repositoryId: id }),
+              )}
+
+              <Field label="Serving">
+                <Dropdown
+                  className={styles.dropdown}
+                  aria-label="Serving"
+                  placeholder="Any"
+                  selectedOptions={[activeValue]}
+                  value={activeValue === '' ? 'Any' : activeValue === 'true' ? 'Active' : 'Inactive'}
+                  onOptionSelect={(_, data) =>
+                    patchFilter({ isActive: data.optionValue === '' ? null : data.optionValue === 'true' })
+                  }
+                >
+                  <Option value="">Any</Option>
+                  <Option value="true">Active</Option>
+                  <Option value="false">Inactive</Option>
+                </Dropdown>
+              </Field>
+
+              {/* Matches on overlap, so an installation spanning the window counts even if it
+                  started earlier. */}
+              <Field label="Installed from">
+                <Input
+                  type="date"
+                  value={filter.validFrom ?? ''}
+                  onChange={(_, data) => patchFilter({ validFrom: data.value || null })}
+                />
+              </Field>
+
+              <Field label="Installed to">
+                <Input
+                  type="date"
+                  value={filter.validTo ?? ''}
+                  onChange={(_, data) => patchFilter({ validTo: data.value || null })}
+                />
+              </Field>
+            </div>
+
+            <div className={styles.filterFooter}>
+              {/* Decommissioned rows are soft-deleted, so a past-date query cannot see them
+                  without this. Off by default to keep the everyday grid clean. */}
+              <Checkbox
+                label="Include decommissioned"
+                checked={filter.includeDisabled ?? false}
+                onChange={(_, data) => patchFilter({ includeDisabled: Boolean(data.checked) })}
+              />
+            </div>
+          </div>
+        )}
       </div>
+
+      {/* Values are chosen in a drawer, not in a dropdown menu: a lookup here runs to hundreds of
+          rows, which is more than a menu can show without becoming a scrolling column pinned to a
+          control near the edge of the window. */}
+      {picker && (
+        <LookupPickerDrawer
+          label={picker.label}
+          clearLabel={picker.clearLabel}
+          items={itemsOf(lookups, picker.kind)}
+          selected={picker.selected}
+          multiple={picker.multiple}
+          onApply={picker.onApply}
+          onClose={() => setPicker(null)}
+        />
+      )}
 
       <div className={styles.tableWrapper}>
         {isLoading && (
@@ -515,9 +843,14 @@ export function InstallationsPage() {
           </div>
         )}
 
+        {/* `width: 100%` with the sum as the minimum: the columns below are a floor, not a fixed
+            size, so a window wider than the grid spreads the slack across the columns instead of
+            leaving a gap — and the sideways scrollbar appears only when the window really is too
+            narrow to hold the twelve columns. */}
         <Table
           size="small"
-          className={mergeClasses(styles.table, isLoading ? styles.dimmed : undefined)}
+          style={{ width: '100%', minWidth: `${widthOf(COLUMNS)}px` }}
+          className={mergeClasses(sheet.table, isLoading ? styles.dimmed : undefined)}
         >
           <colgroup>
             {COLUMNS.map((column) => (
@@ -527,31 +860,57 @@ export function InstallationsPage() {
 
           <TableHeader>
             <TableRow>
+              {/* The gutter's corner cell, as on a sheet: no label, it numbers the rows. */}
+              <TableHeaderCell className={sheet.headerCell} aria-label="Row number" />
+
               {sortableHeader('machineName')}
               {sortableHeader('appName')}
               {sortableHeader('appStageName')}
-              <TableHeaderCell className={styles.nowrap}>Arch</TableHeaderCell>
+              <TableHeaderCell className={sheet.headerCell}>Arch</TableHeaderCell>
               {sortableHeader('dnsName')}
               {sortableHeader('rootPath')}
-              <TableHeaderCell className={styles.nowrap}>Physical path</TableHeaderCell>
-              <TableHeaderCell className={styles.nowrap}>Tags</TableHeaderCell>
+              <TableHeaderCell className={sheet.headerCell}>Physical path</TableHeaderCell>
+
+              <TableHeaderCell className={sheet.headerCell}>Tags</TableHeaderCell>
               {sortableHeader('validFromDate')}
               {sortableHeader('isActive')}
-              <TableHeaderCell className={styles.nowrap}>Actions</TableHeaderCell>
+              <TableHeaderCell className={sheet.headerCell}>Actions</TableHeaderCell>
             </TableRow>
           </TableHeader>
 
           <TableBody>
             {page.items.length === 0 && !isLoading && (
               <TableRow>
-                <TableCell colSpan={11}>
+                <TableCell colSpan={COLUMNS.length}>
                   <span className={styles.muted}>No installations match the current filter.</span>
                 </TableCell>
               </TableRow>
             )}
 
-            {page.items.map((item) => (
-              <TableRow key={item.id}>
+            {page.items.map((item, index) => (
+              // Selecting a row is how the detail is opened, so the whole row is the target —
+              // not a 24px icon at the far right of a 1500px line. The icon stays for anyone
+              // who reaches for it, and for keyboard users the row is a real tab stop.
+              <TableRow
+                key={item.id}
+                className={mergeClasses(
+                  styles.selectableRow,
+                  selectedId === item.id ? styles.selectedRow : undefined,
+                )}
+                tabIndex={0}
+                aria-selected={selectedId === item.id}
+                onClick={() => openDetail(item.id)}
+                onKeyDown={(event) => {
+                  if (event.key === 'Enter' || event.key === ' ') {
+                    event.preventDefault();
+                    openDetail(item.id);
+                  }
+                }}
+              >
+                <TableCell className={sheet.gutterCell}>
+                  {((page.pageNumber || 1) - 1) * (page.pageSize || DEFAULT_PAGE_SIZE) + index + 1}
+                </TableCell>
+
                 <TableCell className={styles.truncate} title={item.machineName}>
                   {item.machineName}
                 </TableCell>
@@ -583,8 +942,14 @@ export function InstallationsPage() {
                   ) : (
                     <div className={styles.tagList}>
                       {item.tags.map((tag) => (
-                        <Badge key={tag} appearance="tint" color="informative" size="small">
-                          {tag}
+                        <Badge
+                          key={tag}
+                          appearance="tint"
+                          color="informative"
+                          size="small"
+                          className={styles.tagBadge}
+                        >
+                          <span className={styles.tagText}>{tag}</span>
                         </Badge>
                       ))}
                     </div>
@@ -599,14 +964,16 @@ export function InstallationsPage() {
                     {item.isActive ? 'Active' : 'Inactive'}
                   </Badge>
                 </TableCell>
-                <TableCell>
+                {/* Each of these does something other than "select this row", so none of them
+                    may also trigger the row's own click. */}
+                <TableCell onClick={(event) => event.stopPropagation()}>
                   <div className={styles.rowActions}>
                     <Tooltip content="View details" relationship="label">
                       <Button
                         size="small"
                         appearance="subtle"
                         icon={<EyeRegular />}
-                        onClick={() => navigate(`/installations/${item.id}/view`)}
+                        onClick={() => openDetail(item.id)}
                       />
                     </Tooltip>
                     <Tooltip content="Edit" relationship="label">
@@ -653,11 +1020,11 @@ export function InstallationsPage() {
         </Button>
       </div>
 
-      {isDetailRoute && routeId && routeId !== 'new' && (
-        <InstallationDetailDialog
-          installationId={Number(routeId)}
+      {selectedId !== null && (
+        <InstallationDetailDrawer
+          installationId={selectedId}
           onClose={() => navigate({ pathname: '/installations', search: searchParams.toString() })}
-          onEdit={() => navigate(`/installations/${routeId}`)}
+          onEdit={() => navigate(`/installations/${selectedId}`)}
         />
       )}
 
@@ -665,6 +1032,7 @@ export function InstallationsPage() {
         <InstallationDialog
           installationId={dialogMode === 'create' ? null : Number(routeId)}
           lookups={lookups}
+          lookupMetadata={lookupMetadata}
           onClose={() => navigate({ pathname: '/installations', search: searchParams.toString() })}
           onSaved={() => {
             toast.success(dialogMode === 'create' ? 'Installation created.' : 'Installation saved.');

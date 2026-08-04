@@ -30,10 +30,10 @@ import {
 import { AddRegular, DeleteRegular, EditRegular } from '@fluentui/react-icons';
 import { api } from '../api/client';
 import type { AppRepository, AppRepositoryUpsert } from '../api/types';
-import { repositoryTypeNames } from '../api/types';
-import { useLookups } from '../hooks/useLookups';
+import { itemsOf, useLookups } from '../hooks/useLookups';
 import { useAppToast } from '../hooks/useAppToast';
 import { ConfirmDialog } from '../components/ConfirmDialog';
+import { useSheetStyles } from '../styles/sheetStyles';
 
 const useStyles = makeStyles({
   root: { display: 'flex', flexDirection: 'column', rowGap: '20px' },
@@ -58,7 +58,7 @@ const useStyles = makeStyles({
 
 const blankForm: AppRepositoryUpsert = {
   repositoryUrl: '',
-  repositoryType: 0,
+  repositoryTypeId: null,
   description: '',
   installationIds: [],
 };
@@ -79,8 +79,10 @@ interface InstallationOption {
  */
 export function RepositoriesPage() {
   const styles = useStyles();
+  const sheet = useSheetStyles();
   const toast = useAppToast();
   const { lookups, error: lookupsError } = useLookups();
+  const repositoryTypes = itemsOf(lookups, 'repositorytypes');
 
   const [items, setItems] = useState<AppRepository[]>([]);
   const [installations, setInstallations] = useState<InstallationOption[]>([]);
@@ -244,15 +246,16 @@ export function RepositoriesPage() {
       <div className={styles.filterRow}>
         <Field label="Application" className={styles.filter}>
           <Dropdown
+            aria-label="Application"
             placeholder="All applications"
             selectedOptions={appNameFilter ? [String(appNameFilter)] : ['']}
-            value={lookups.appNames.find((app) => app.id === appNameFilter)?.name ?? ''}
+            value={itemsOf(lookups, 'appnames').find((app) => app.id === appNameFilter)?.name ?? ''}
             onOptionSelect={(_, data) =>
               setAppNameFilter(data.optionValue ? Number(data.optionValue) : null)
             }
           >
             <Option value="">All applications</Option>
-            {lookups.appNames.map((app) => (
+            {itemsOf(lookups, 'appnames').map((app) => (
               <Option key={app.id} value={String(app.id)}>
                 {app.name}
               </Option>
@@ -262,6 +265,7 @@ export function RepositoriesPage() {
 
         <Field label="Installation" className={styles.filter}>
           <Dropdown
+            aria-label="Installation"
             placeholder="All installations"
             selectedOptions={installationFilter ? [String(installationFilter)] : ['']}
             value={installationFilter ? (installationLabels.get(installationFilter) ?? '') : ''}
@@ -283,14 +287,14 @@ export function RepositoriesPage() {
         <Spinner label="Loading repositories..." />
       ) : (
         <div className={styles.tableWrapper}>
-          <Table size="small">
+          <Table size="small" className={sheet.table}>
             <TableHeader>
               <TableRow>
-                <TableHeaderCell>Type</TableHeaderCell>
-                <TableHeaderCell>URL</TableHeaderCell>
-                <TableHeaderCell>Installations</TableHeaderCell>
-                <TableHeaderCell>Description</TableHeaderCell>
-                <TableHeaderCell>Actions</TableHeaderCell>
+                <TableHeaderCell className={sheet.headerCell}>Type</TableHeaderCell>
+                <TableHeaderCell className={sheet.headerCell}>URL</TableHeaderCell>
+                <TableHeaderCell className={sheet.headerCell}>Installations</TableHeaderCell>
+                <TableHeaderCell className={sheet.headerCell}>Description</TableHeaderCell>
+                <TableHeaderCell className={sheet.headerCell}>Actions</TableHeaderCell>
               </TableRow>
             </TableHeader>
 
@@ -305,7 +309,9 @@ export function RepositoriesPage() {
 
               {items.map((repo) => (
                 <TableRow key={repo.id}>
-                  <TableCell>{repositoryTypeNames[repo.repositoryType] ?? 'Unknown'}</TableCell>
+                  <TableCell>
+                    {repo.repositoryTypeName ?? <span className={styles.muted}>not recorded</span>}
+                  </TableCell>
                   <TableCell className={styles.mono}>{repo.repositoryUrl}</TableCell>
                   <TableCell>
                     {repo.installationIds.length === 0 ? (
@@ -335,7 +341,7 @@ export function RepositoriesPage() {
                               id: repo.id,
                               form: {
                                 repositoryUrl: repo.repositoryUrl,
-                                repositoryType: repo.repositoryType,
+                                repositoryTypeId: repo.repositoryTypeId ?? null,
                                 description: repo.description ?? '',
                                 installationIds: [...repo.installationIds],
                               },
@@ -369,20 +375,36 @@ export function RepositoriesPage() {
 
               <DialogContent>
                 <div className={styles.form}>
-                  <Field label="Type">
+                  {/* An Id-backed dropdown off the repositorytypes lookup, like every other
+                      shared value. It used to be a hardcoded list mirroring a C# enum. */}
+                  <Field label="Type" hint="Leave empty if the system is not known.">
                     <Dropdown
-                      selectedOptions={[String(editing.form.repositoryType)]}
-                      value={repositoryTypeNames[editing.form.repositoryType] ?? 'Unknown'}
+                      aria-label="Type"
+                      selectedOptions={
+                        editing.form.repositoryTypeId === null ||
+                        editing.form.repositoryTypeId === undefined
+                          ? []
+                          : [String(editing.form.repositoryTypeId)]
+                      }
+                      value={
+                        repositoryTypes.find((type) => type.id === editing.form.repositoryTypeId)
+                          ?.name ?? ''
+                      }
+                      placeholder="Not recorded"
                       onOptionSelect={(_, data) =>
                         setEditing({
                           ...editing,
-                          form: { ...editing.form, repositoryType: Number(data.optionValue) },
+                          form: {
+                            ...editing.form,
+                            repositoryTypeId: data.optionValue ? Number(data.optionValue) : null,
+                          },
                         })
                       }
                     >
-                      {Object.entries(repositoryTypeNames).map(([value, label]) => (
-                        <Option key={value} value={value}>
-                          {label}
+                      <Option value="">Not recorded</Option>
+                      {repositoryTypes.map((type) => (
+                        <Option key={type.id} value={String(type.id)}>
+                          {type.name}
                         </Option>
                       ))}
                     </Dropdown>
@@ -407,6 +429,7 @@ export function RepositoriesPage() {
                     hint="Leave empty to register the repository before its installation exists."
                   >
                     <Dropdown
+                      aria-label="Installations"
                       multiselect
                       placeholder="Not linked to any installation"
                       selectedOptions={editing.form.installationIds.map(String)}

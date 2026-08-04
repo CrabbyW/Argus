@@ -34,8 +34,11 @@ actually identifies*:
 | `IsActive`, `ValidFromDate`, `ValidToDate`, `IsEnabled` | `ApplicationInstallations` columns | Genuinely per-installation values, not shared |
 | login credentials | `ApplicationUser` | Separate concern (auth) |
 
-Result: **13 tables** — 8 plain lookups + `AppRepositories` + `ApplicationInstallations` (the
-fact table) + `InstallationTags` + `InstallationRepositories` + `ApplicationUser`.
+| `RepositoryType` | `RepositoryTypes` lookup | Added 2026-07-31 — `svn`/`git`/`bitbucket` is a shared vocabulary too |
+
+Result: **14 tables** — 8 plain lookups + `AppRepositories` + `RepositoryTypes` +
+`ApplicationInstallations` (the fact table) + `InstallationTags` + `InstallationRepositories` +
+`ApplicationUser`.
 
 > **Superseded, 2026-07-30.** This table originally stopped at 8 tables, leaving `RootPath`,
 > `PhysicalPath` and `Tags` as plain columns and hanging `AppRepositories` off `Applications`.
@@ -53,10 +56,13 @@ fact table) + `InstallationTags` + `InstallationRepositories` + `ApplicationUser
 - [x] `AppStages` entity + configuration (unique `StageName`, `SortOrder`)
 - [x] `ProcessorArchitectures` entity + configuration (unique `ArchitectureName`)
 - [x] `DnsEndpoints` entity + configuration (unique `DnsName`)
-- [x] `AppRepositories` entity + configuration (FK → `Applications`, `RepositoryType` enum)
+- [x] `AppRepositories` entity + configuration _(as built here: FK → `Applications` + a
+      `RepositoryType` enum. Both are gone — the FK became M:N onto the installation on
+      2026-07-30, and the enum became the `RepositoryTypes` lookup on 2026-07-31.)_
 - [x] `Installations` entity + configuration (5 FKs, unique deployment key, indexes)
 - [x] `ApplicationUser` entity + configuration (unique `Username`, hash + salt)
-- [x] `RepositoryType` enum in `Database/Entities/Enums/`
+- [x] `RepositoryType` enum in `Database/Entities/Enums/` _(replaced 2026-07-31 by the
+      `RepositoryTypes` lookup table — migration `20260731211501_AddRepositoryTypesLookup`)_
 - [x] `ArgusDbContext` applying configurations from assembly
 - [x] Seed data (`DbSeeder`) — small demo set only, no real/bulk data
 - [x] Generate the first migration (`InitialCreate`)

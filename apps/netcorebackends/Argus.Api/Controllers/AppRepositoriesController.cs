@@ -26,14 +26,15 @@ public class AppRepositoriesController : ControllerBase
         this.repositoryService = repositoryService;
     }
 
-    [HttpGet]
-    [EndpointName("AppRepositories_GetRepositories")]
+    /// <summary>
+    /// A read, sent as a POST: the criteria travel in the body, not in the query string.
+    /// </summary>
+    [HttpPost("search")]
+    [EndpointName("AppRepositories_SearchRepositories")]
     [ProducesResponseType(typeof(ApiResponse<IReadOnlyList<AppRepositoryDto>>), StatusCodes.Status200OK)]
-    public async Task<IActionResult> GetRepositories(
-        [FromQuery] int? installationId,
-        [FromQuery] int? appNameId)
+    public async Task<IActionResult> SearchRepositories([FromBody] AppRepositoryListRequestDto request)
     {
-        var items = await repositoryService.GetAllAsync(installationId, appNameId);
+        var items = await repositoryService.GetAllAsync(request.InstallationId, request.AppNameId);
 
         return Ok(new ApiResponse<IReadOnlyList<AppRepositoryDto>> { Success = true, Data = items });
     }

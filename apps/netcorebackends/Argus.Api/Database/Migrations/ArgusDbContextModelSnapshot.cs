@@ -78,7 +78,7 @@ namespace Argus.Api.Database.Migrations
                         .HasColumnType("nvarchar(512)")
                         .HasColumnName("RepositoryUrl");
 
-                    b.Property<int>("RepositoryType")
+                    b.Property<int?>("RepositoryTypeId")
                         .HasColumnType("int");
 
                     b.HasKey("Id");
@@ -87,6 +87,8 @@ namespace Argus.Api.Database.Migrations
                         .IsUnique()
                         .HasDatabaseName("UX_AppRepositories_RepositoryUrl")
                         .HasFilter("[IsEnabled] = 1");
+
+                    b.HasIndex("RepositoryTypeId");
 
                     b.ToTable("AppRepositories", (string)null);
                 });
@@ -285,6 +287,64 @@ namespace Argus.Api.Database.Migrations
                     b.ToTable("DnsEndpoints", (string)null);
                 });
 
+            modelBuilder.Entity("Argus.Api.Database.Entities.EntityJournalEntry", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("Action")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("nvarchar(16)");
+
+                    b.Property<Guid>("ChangeSetId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("ChangedBy")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("nvarchar(128)");
+
+                    b.Property<DateTime>("ChangedUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("EntityName")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
+
+                    b.Property<string>("Field")
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
+
+                    b.Property<int>("InstallationId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("NewValue")
+                        .HasMaxLength(512)
+                        .HasColumnType("nvarchar(512)");
+
+                    b.Property<int?>("NewValueId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("OldValue")
+                        .HasMaxLength(512)
+                        .HasColumnType("nvarchar(512)");
+
+                    b.Property<int?>("OldValueId")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("InstallationId", "ChangedUtc")
+                        .HasDatabaseName("IX_EntityJournal_Installation");
+
+                    b.ToTable("EntityJournal", (string)null);
+                });
+
             modelBuilder.Entity("Argus.Api.Database.Entities.InstallationRepository", b =>
                 {
                     b.Property<int>("InstallationId")
@@ -406,6 +466,39 @@ namespace Argus.Api.Database.Migrations
                     b.ToTable("ProcessorArchitectures", (string)null);
                 });
 
+            modelBuilder.Entity("Argus.Api.Database.Entities.RepositoryType", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("Description")
+                        .HasMaxLength(512)
+                        .HasColumnType("nvarchar(512)");
+
+                    b.Property<bool>("IsEnabled")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bit")
+                        .HasDefaultValue(true);
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)")
+                        .HasColumnName("RepositoryTypeName");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Name")
+                        .IsUnique()
+                        .HasDatabaseName("UX_RepositoryTypes_RepositoryTypeName")
+                        .HasFilter("[IsEnabled] = 1");
+
+                    b.ToTable("RepositoryTypes", (string)null);
+                });
+
             modelBuilder.Entity("Argus.Api.Database.Entities.RootPath", b =>
                 {
                     b.Property<int>("Id")
@@ -468,6 +561,16 @@ namespace Argus.Api.Database.Migrations
                     b.ToTable("Tags", (string)null);
                 });
 
+            modelBuilder.Entity("Argus.Api.Database.Entities.AppRepository", b =>
+                {
+                    b.HasOne("Argus.Api.Database.Entities.RepositoryType", "RepositoryType")
+                        .WithMany("AppRepositories")
+                        .HasForeignKey("RepositoryTypeId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.Navigation("RepositoryType");
+                });
+
             modelBuilder.Entity("Argus.Api.Database.Entities.ApplicationInstallation", b =>
                 {
                     b.HasOne("Argus.Api.Database.Entities.AppName", "AppName")
@@ -523,6 +626,17 @@ namespace Argus.Api.Database.Migrations
                     b.Navigation("ProcessorArchitecture");
 
                     b.Navigation("RootPath");
+                });
+
+            modelBuilder.Entity("Argus.Api.Database.Entities.EntityJournalEntry", b =>
+                {
+                    b.HasOne("Argus.Api.Database.Entities.ApplicationInstallation", "Installation")
+                        .WithMany("JournalEntries")
+                        .HasForeignKey("InstallationId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Installation");
                 });
 
             modelBuilder.Entity("Argus.Api.Database.Entities.InstallationRepository", b =>
@@ -583,6 +697,8 @@ namespace Argus.Api.Database.Migrations
                     b.Navigation("InstallationRepositories");
 
                     b.Navigation("InstallationTags");
+
+                    b.Navigation("JournalEntries");
                 });
 
             modelBuilder.Entity("Argus.Api.Database.Entities.DnsEndpoint", b =>
@@ -603,6 +719,11 @@ namespace Argus.Api.Database.Migrations
             modelBuilder.Entity("Argus.Api.Database.Entities.ProcessorArchitecture", b =>
                 {
                     b.Navigation("Installations");
+                });
+
+            modelBuilder.Entity("Argus.Api.Database.Entities.RepositoryType", b =>
+                {
+                    b.Navigation("AppRepositories");
                 });
 
             modelBuilder.Entity("Argus.Api.Database.Entities.RootPath", b =>

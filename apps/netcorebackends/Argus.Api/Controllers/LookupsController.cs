@@ -11,9 +11,9 @@ namespace Argus.Api.Controllers;
 /// The lookup tables share one shape, so they share one controller. These are the tables that are
 /// filled before any installation can be recorded.
 ///
-/// <c>kind</c> is one of: machines, appnames, appstagenames, processorarchitectures, dnsendpoints,
-/// rootpaths, physicalpaths, tags, apprepositories. The last is readable only — repositories are
-/// written through <c>/api/AppRepositories</c>, because their type and installation links have
+/// The kinds are not listed here on purpose — <c>GET /api/lookups</c> enumerates them, and that
+/// is the list the UI builds itself from. <c>apprepositories</c> is readable only: repositories
+/// are written through <c>/api/AppRepositories</c>, because their type and installation links have
 /// nowhere to live in the shared lookup payload.
 /// </summary>
 [ApiController]
@@ -30,11 +30,30 @@ public class LookupsController : ControllerBase
         this.lookupService = lookupService;
     }
 
-    [HttpGet("{kind}")]
-    [EndpointName("Lookups_GetLookupItems")]
+    /// <summary>
+    /// Every kind and how to render it. Deliberately the first call the lookup screen makes: the
+    /// tabs, the form fields and the name-length limits all come from here rather than from a copy
+    /// kept in the frontend. A read, so it is sent as a POST like every other read in this API.
+    /// </summary>
+    [HttpPost("search")]
+    [EndpointName("Lookups_SearchLookupMetadata")]
+    [ProducesResponseType(typeof(ApiResponse<IReadOnlyList<LookupMetadataDto>>), StatusCodes.Status200OK)]
+    public IActionResult SearchLookupMetadata([FromBody] ReadRequestBody? request) =>
+        Ok(new ApiResponse<IReadOnlyList<LookupMetadataDto>>
+        {
+            Success = true,
+            Data = lookupService.GetMetadata()
+        });
+
+    /// <summary>
+    /// A read, sent as a POST. The route carries `/search` because `POST /lookups/{kind}` is
+    /// already how a lookup value is created.
+    /// </summary>
+    [HttpPost("{kind}/search")]
+    [EndpointName("Lookups_SearchLookupItems")]
     [ProducesResponseType(typeof(ApiResponse<IReadOnlyList<LookupItemDto>>), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ErrorResponse), StatusCodes.Status400BadRequest)]
-    public async Task<IActionResult> GetLookupItems(string kind)
+    public async Task<IActionResult> SearchLookupItems(string kind, [FromBody] ReadRequestBody? request)
     {
         if (!TryParseKind(kind, out var parsed, out var error))
         {
@@ -46,8 +65,8 @@ public class LookupsController : ControllerBase
         return Ok(new ApiResponse<IReadOnlyList<LookupItemDto>> { Success = true, Data = items });
     }
 
-    [HttpGet("{kind}/{id:int}")]
-    [EndpointName("Lookups_GetLookupItemById")]
+    [HttpPost("{kind}/{id:int}/read")]
+    [EndpointName("Lookups_ReadLookupItemById")]
     [ProducesResponseType(typeof(ApiResponse<LookupItemDto>), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ErrorResponse), StatusCodes.Status400BadRequest)]
     [ProducesResponseType(typeof(ErrorResponse), StatusCodes.Status404NotFound)]

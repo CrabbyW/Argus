@@ -1,22 +1,37 @@
 import { Link as RouterLink, Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
 import {
   Button,
+  Menu,
+  MenuItemRadio,
+  MenuList,
+  MenuPopover,
+  MenuTrigger,
   Spinner,
   Tab,
   TabList,
   Text,
   Title3,
   Toaster,
+  Tooltip,
   makeStyles,
   tokens,
 } from '@fluentui/react-components';
-import { SignOutRegular } from '@fluentui/react-icons';
+import {
+  DesktopRegular,
+  SignOutRegular,
+  WeatherMoonRegular,
+  WeatherSunnyRegular,
+} from '@fluentui/react-icons';
 import { useAuth } from './auth/AuthContext';
+import { useTheme } from './theme/ThemeContext';
+import { ArgusMark } from './components/ArgusMark';
 import { TOASTER_ID } from './hooks/useAppToast';
 import { LoginPage } from './pages/LoginPage';
 import { InstallationsPage } from './pages/InstallationsPage';
+import { LogsPage } from './pages/LogsPage';
 import { LookupsPage } from './pages/LookupsPage';
 import { RepositoriesPage } from './pages/RepositoriesPage';
+import { UsersPage } from './pages/UsersPage';
 
 const useStyles = makeStyles({
   shell: { minHeight: '100vh', backgroundColor: tokens.colorNeutralBackground2 },
@@ -33,14 +48,28 @@ const useStyles = makeStyles({
     top: 0,
     zIndex: 10,
   },
+  // Mark plus wordmark, one unit. `brand/README.md` sets the clear space at one tile —
+  // 12 of the mark's 64 units, so 24px of mark buys 4.5px around it, and the header's own
+  // gap covers the rest.
   brand: {
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: '9px',
+    paddingRight: '5px',
     fontWeight: tokens.fontWeightSemibold,
     fontSize: tokens.fontSizeBase500,
     color: tokens.colorNeutralForeground1,
     textDecoration: 'none',
   },
+  // The mark carries the brand colour; the wordmark stays in text colour, as in the logo
+  // files, where only the tiles are blue.
+  mark: { color: tokens.colorBrandForeground1, flexShrink: 0 },
   spacer: { flexGrow: 1 },
-  main: { maxWidth: '1500px', margin: '0 auto', padding: '24px' },
+  // Wide on purpose. The installations grid is twelve columns and needs about 1530px before it
+  // has to scroll sideways; a 1500px cap meant a full-screen window still showed a horizontal
+  // scrollbar under the table, which is the one place the extra pixels were there for. The cap
+  // that remains only stops text pages from running to a 4K width.
+  main: { maxWidth: '2200px', margin: '0 auto', padding: '24px' },
   center: { display: 'flex', justifyContent: 'center', paddingTop: '80px' },
   muted: { color: tokens.colorNeutralForeground3 },
   notFound: { display: 'flex', flexDirection: 'column', rowGap: '12px', alignItems: 'flex-start' },
@@ -50,7 +79,48 @@ const useStyles = makeStyles({
 function activeTab(pathname: string): string {
   if (pathname.startsWith('/lookups')) return 'lookups';
   if (pathname.startsWith('/repositories')) return 'repositories';
+  if (pathname.startsWith('/users')) return 'users';
+  if (pathname.startsWith('/logs')) return 'logs';
   return 'installations';
+}
+
+/**
+ * Light/dark with "System" kept as an option rather than only a two-way flip: a machine that
+ * switches itself at dusk should be able to go on doing that after someone has once looked at
+ * the menu. The button shows the theme currently on screen, not the mode that was chosen.
+ */
+function ThemeMenu() {
+  const { mode, isDark, setMode } = useTheme();
+
+  return (
+    <Menu
+      checkedValues={{ theme: [mode] }}
+      onCheckedValueChange={(_, data) => setMode(data.checkedItems[0])}
+    >
+      <MenuTrigger disableButtonEnhancement>
+        <Tooltip content="Theme" relationship="label">
+          <Button
+            appearance="subtle"
+            icon={isDark ? <WeatherMoonRegular /> : <WeatherSunnyRegular />}
+          />
+        </Tooltip>
+      </MenuTrigger>
+
+      <MenuPopover>
+        <MenuList>
+          <MenuItemRadio name="theme" value="light" icon={<WeatherSunnyRegular />}>
+            Light
+          </MenuItemRadio>
+          <MenuItemRadio name="theme" value="dark" icon={<WeatherMoonRegular />}>
+            Dark
+          </MenuItemRadio>
+          <MenuItemRadio name="theme" value="system" icon={<DesktopRegular />}>
+            System
+          </MenuItemRadio>
+        </MenuList>
+      </MenuPopover>
+    </Menu>
+  );
 }
 
 function NotFoundPage() {
@@ -96,6 +166,7 @@ export function App() {
     <div className={styles.shell}>
       <header className={styles.header}>
         <RouterLink to="/installations" className={styles.brand}>
+          <ArgusMark size={24} className={styles.mark} />
           Argus
         </RouterLink>
 
@@ -106,11 +177,14 @@ export function App() {
           <Tab value="installations">Installations</Tab>
           <Tab value="lookups">Lookups</Tab>
           <Tab value="repositories">Repositories</Tab>
+          <Tab value="users">Users</Tab>
+          <Tab value="logs">Logs</Tab>
         </TabList>
 
         <div className={styles.spacer} />
 
         <Text className={styles.muted}>{user.displayName}</Text>
+        <ThemeMenu />
         <Button appearance="subtle" icon={<SignOutRegular />} onClick={logout}>
           Sign out
         </Button>
@@ -134,6 +208,8 @@ export function App() {
           <Route path="/lookups" element={<LookupsPage />} />
           <Route path="/lookups/:kind" element={<LookupsPage />} />
           <Route path="/repositories" element={<RepositoriesPage />} />
+          <Route path="/users" element={<UsersPage />} />
+          <Route path="/logs" element={<LogsPage />} />
           <Route path="*" element={<NotFoundPage />} />
         </Routes>
       </main>

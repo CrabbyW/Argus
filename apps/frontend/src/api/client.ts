@@ -9,11 +9,17 @@ import type {
   InstallationFilter,
   InstallationListItem,
   InstallationUpsert,
+  JournalEntry,
+  LogContent,
+  LogFile,
   LookupItem,
   LookupKind,
+  LookupMetadata,
   LookupUpsert,
   LoginRequest,
   LoginResponse,
+  User,
+  UserUpsert,
 } from './types';
 
 const TOKEN_STORAGE_KEY = 'argus.token';
@@ -31,10 +37,21 @@ export class ApiError extends Error {
   }
 }
 
+/**
+ * The token lives in `sessionStorage`, not `localStorage`: closing the browser must end the
+ * session no matter what, so reopening Argus always starts at the sign-in screen. Within a
+ * tab it survives reloads and navigation, and the server's own 8-hour token lifetime still
+ * ends a session that stays open all day.
+ *
+ * A token left behind by an earlier `localStorage` build is dropped on load — otherwise it
+ * would sit there unused and outlive every session it was supposed to be scoped to.
+ */
+localStorage.removeItem(TOKEN_STORAGE_KEY);
+
 export const tokenStorage = {
-  get: () => localStorage.getItem(TOKEN_STORAGE_KEY),
-  set: (token: string) => localStorage.setItem(TOKEN_STORAGE_KEY, token),
-  clear: () => localStorage.removeItem(TOKEN_STORAGE_KEY),
+  get: () => sessionStorage.getItem(TOKEN_STORAGE_KEY),
+  set: (token: string) => sessionStorage.setItem(TOKEN_STORAGE_KEY, token),
+  clear: () => sessionStorage.removeItem(TOKEN_STORAGE_KEY),
 };
 
 let unauthorizedHandler: (() => void) | null = null;
@@ -98,16 +115,56 @@ function toQueryString(filter: InstallationFilter): string {
   return query ? `?${query}` : '';
 }
 
+/**
+ * A read sent as a POST: criteria in the body, never in the query string.
+ *
+ * `requestUrl` goes with them. Once the criteria move into the body every search shares one
+ * address — `POST /api/installations/search` — and the server's action log would record that
+ * same line whatever was asked for. The full address of the equivalent request is therefore
+ * carried in the payload, so the log keeps saying which search was run.
+ */
+function read<T>(
+  path: string,
+  body: Record<string, unknown> = {},
+  /**
+   * What this read is, as an address: the resource plus its criteria, which is what the log is
+   * for. Defaults to the posted path — pass it explicitly wherever that path is a `/search`
+   * endpoint, since `/installations/search` names the mechanism and not the question.
+   */
+  describedAs = path,
+): Promise<T> {
+  return request<T>(path, {
+    method: 'POST',
+    body: JSON.stringify({
+      ...body,
+      requestUrl: `${window.location.origin}/api${describedAs}`,
+    }),
+  });
+}
+
 export const api = {
   login: (payload: LoginRequest) =>
     request<LoginResponse>('/auth/login', { method: 'POST', body: JSON.stringify(payload) }),
 
-  getCurrentUser: () => request<CurrentUser>('/auth/me'),
+  getCurrentUser: () => read<CurrentUser>('/auth/me'),
 
   getInstallations: (filter: InstallationFilter) =>
-    request<DataViewOutput<InstallationListItem>>(`/installations${toQueryString(filter)}`),
+    read<DataViewOutput<InstallationListItem>>(
+      '/installations/search',
+      { ...filter },
+      `/installations${toQueryString(filter)}`,
+    ),
 
-  getInstallation: (id: number) => request<InstallationDetail>(`/installations/${id}`),
+  getInstallation: (id: number) =>
+    read<InstallationDetail>(`/installations/${id}/read`, {}, `/installations/${id}`),
+
+  /** What was changed on this installation, by whom and when. Newest first. */
+  getInstallationJournal: (id: number, maxEntries = 200) =>
+    read<JournalEntry[]>(
+      `/installations/${id}/journal`,
+      { maxEntries },
+      `/installations/${id}/journal?maxEntries=${maxEntries}`,
+    ),
 
   createInstallation: (payload: InstallationUpsert) =>
     request<InstallationDetail>('/installations', {
@@ -124,7 +181,11 @@ export const api = {
   deleteInstallation: (id: number) =>
     request<boolean>(`/installations/${id}`, { method: 'DELETE' }),
 
-  getLookup: (kind: LookupKind) => request<LookupItem[]>(`/lookups/${kind}`),
+  /** Every lookup kind and how to render it. The Lookups screen starts here. */
+  getLookupMetadata: () => read<LookupMetadata[]>('/lookups/search', {}, '/lookups'),
+
+  getLookup: (kind: LookupKind) =>
+    read<LookupItem[]>(`/lookups/${kind}/search`, {}, `/lookups/${kind}`),
 
   createLookupItem: (kind: LookupKind, payload: LookupUpsert) =>
     request<LookupItem>(`/lookups/${kind}`, { method: 'POST', body: JSON.stringify(payload) }),
@@ -152,7 +213,12 @@ export const api = {
       params.set('appNameId', String(filter.appNameId));
     }
     const query = params.toString();
-    return request<AppRepository[]>(`/apprepositories${query ? `?${query}` : ''}`);
+
+    return read<AppRepository[]>(
+      '/apprepositories/search',
+      { installationId: filter.installationId ?? null, appNameId: filter.appNameId ?? null },
+      `/apprepositories${query ? `?${query}` : ''}`,
+    );
   },
 
   createRepository: (payload: AppRepositoryUpsert) =>
@@ -169,4 +235,52 @@ export const api = {
 
   deleteRepository: (id: number) =>
     request<boolean>(`/apprepositories/${id}`, { method: 'DELETE' }),
+
+  /**
+   * Accounts. `includeDisabled` exists because a soft-deleted user is invisible to every other
+   * query — without it there would be no way to restore one short of editing the database.
+   */
+  getUsers: (includeDisabled = false) =>
+    read<User[]>(
+      '/users/search',
+      { includeDisabled },
+      `/users${includeDisabled ? '?includeDisabled=true' : ''}`,
+    ),
+
+  createUser: (payload: UserUpsert) =>
+    request<User>('/users', { method: 'POST', body: JSON.stringify(payload) }),
+
+  updateUser: (id: number, payload: UserUpsert) =>
+    request<User>(`/users/${id}`, { method: 'PUT', body: JSON.stringify(payload) }),
+
+  /** Its own call, so an ordinary edit can never carry a password by accident. */
+  setUserPassword: (id: number, password: string) =>
+    request<boolean>(`/users/${id}/password`, {
+      method: 'POST',
+      body: JSON.stringify({ password }),
+    }),
+
+  disableUser: (id: number) => request<boolean>(`/users/${id}`, { method: 'DELETE' }),
+
+  restoreUser: (id: number) => request<boolean>(`/users/${id}/restore`, { method: 'POST' }),
+
+  /** The log files on the server, newest first. Read-only — nothing here can delete one. */
+  getLogFiles: () => read<LogFile[]>('/logs/search', {}, '/logs'),
+
+  /**
+   * The tail of one file. `maxLines` is what keeps this endpoint usable against a log that has
+   * been running for weeks; the server clamps it as well, so a large number is safe to send.
+   */
+  getLogContent: (name: string, maxLines: number, searchTerm?: string) => {
+    const params = new URLSearchParams({ maxLines: String(maxLines) });
+    if (searchTerm) {
+      params.set('searchTerm', searchTerm);
+    }
+
+    return read<LogContent>(
+      `/logs/${encodeURIComponent(name)}/read`,
+      { maxLines, searchTerm: searchTerm ?? null },
+      `/logs/${encodeURIComponent(name)}?${params.toString()}`,
+    );
+  },
 };

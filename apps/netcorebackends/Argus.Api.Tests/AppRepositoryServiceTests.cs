@@ -1,5 +1,5 @@
-using Argus.Api.Database.Entities.Enums;
 using Argus.Api.Services;
+using Argus.Api.WebApiPoco.Common;
 using Argus.Api.WebApiPoco.Installations;
 using Microsoft.EntityFrameworkCore;
 
@@ -32,7 +32,7 @@ public class AppRepositoryServiceTests
     private static AppRepositoryUpsertDto Repo(string url, params int[] installationIds) => new()
     {
         RepositoryUrl = url,
-        RepositoryType = RepositoryType.Git,
+        RepositoryTypeId = TestDb.RepoTypeGit,
         InstallationIds = installationIds.ToList()
     };
 
@@ -143,6 +143,142 @@ public class AppRepositoryServiceTests
         {
             Assert.Equal(1, await assert.AppRepositories.CountAsync());
             Assert.Equal(0, await assert.InstallationRepositories.CountAsync());
+        }
+    }
+
+    // --- Repository type, since it became a lookup ---------------------------------------
+
+    /// <summary>
+    /// The type is a foreign key now, so the same rule applies to it as to every other lookup Id:
+    /// it has to point at a row that exists. As a bare enum column any number was accepted.
+    /// </summary>
+    [Fact]
+    public async Task A_repository_type_that_does_not_exist_is_rejected()
+    {
+        using var testDb = TestDb.CreateSeeded();
+
+        await using var db = testDb.NewContext();
+
+        var dto = Repo("git://git.local/callcenter.git");
+        dto.RepositoryTypeId = 9999;
+
+        var error = await Assert.ThrowsAsync<ArgumentException>(
+            () => new AppRepositoryService(db).CreateAsync(dto));
+
+        Assert.Contains("9999", error.Message);
+    }
+
+    /// <summary>
+    /// Null replaced the enum's <c>Unknown</c> member: a repository whose source-control system
+    /// was never recorded is a normal row, not an error and not a magic zero.
+    /// </summary>
+    [Fact]
+    public async Task A_repository_may_have_no_type_at_all()
+    {
+        using var testDb = TestDb.CreateSeeded();
+
+        await using (var db = testDb.NewContext())
+        {
+            var dto = Repo("git://git.local/callcenter.git");
+            dto.RepositoryTypeId = null;
+
+            var created = await new AppRepositoryService(db).CreateAsync(dto);
+
+            Assert.Null(created.RepositoryTypeId);
+            Assert.Null(created.RepositoryTypeName);
+        }
+
+        await using (var assert = testDb.NewContext())
+        {
+            Assert.Equal(1, await assert.AppRepositories.CountAsync());
+        }
+    }
+
+    /// <summary>
+    /// The read side carries the type's name as well as its Id, so a grid renders a row without a
+    /// second request — and renaming the type shows up everywhere at once, which is the whole
+    /// reason it stopped being a hardcoded string.
+    /// </summary>
+    [Fact]
+    public async Task Renaming_a_repository_type_changes_what_every_repository_reports()
+    {
+        using var testDb = TestDb.CreateSeeded();
+
+        int repositoryId;
+
+        await using (var db = testDb.NewContext())
+        {
+            var created = await new AppRepositoryService(db).CreateAsync(
+                Repo("git://git.local/callcenter.git"));
+
+            Assert.Equal("Git", created.RepositoryTypeName);
+            repositoryId = created.Id;
+        }
+
+        await using (var db = testDb.NewContext())
+        {
+            await new LookupService(db).UpdateAsync(
+                LookupKind.RepositoryTypes,
+                TestDb.RepoTypeGit,
+                new LookupUpsertDto { Name = "Git (self-hosted)" });
+        }
+
+        await using (var db = testDb.NewContext())
+        {
+            var read = await new AppRepositoryService(db).GetByIdAsync(repositoryId);
+
+            Assert.Equal("Git (self-hosted)", read!.RepositoryTypeName);
+        }
+    }
+
+    /// <summary>
+    /// The delete guard for this kind has to ask the repositories, not the installations.
+    ///
+    /// Asking through <c>ApplicationInstallation</c> is what the other nine kinds do, and it would
+    /// compile here — but this repository is attached to no installation, so that query would
+    /// answer "not in use", the type would be soft-deleted, and the foreign key would point at a
+    /// hidden row. Registering a repository before its installation exists is normal (see above),
+    /// so this is not a corner case.
+    /// </summary>
+    [Fact]
+    public async Task A_repository_type_used_by_an_unattached_repository_cannot_be_deleted()
+    {
+        using var testDb = TestDb.CreateSeeded();
+
+        await using (var db = testDb.NewContext())
+        {
+            await new AppRepositoryService(db).CreateAsync(Repo("git://git.local/callcenter.git"));
+        }
+
+        await using (var db = testDb.NewContext())
+        {
+            var error = await Assert.ThrowsAsync<ArgumentException>(
+                () => new LookupService(db).DeleteAsync(LookupKind.RepositoryTypes, TestDb.RepoTypeGit));
+
+            Assert.Contains("repositories", error.Message);
+        }
+
+        await using (var assert = testDb.NewContext())
+        {
+            Assert.True(await assert.RepositoryTypes.AnyAsync(x => x.Id == TestDb.RepoTypeGit));
+        }
+    }
+
+    /// <summary>The other half: a type nothing points at is removable.</summary>
+    [Fact]
+    public async Task An_unused_repository_type_can_be_deleted()
+    {
+        using var testDb = TestDb.CreateSeeded();
+
+        await using (var db = testDb.NewContext())
+        {
+            Assert.True(await new LookupService(db).DeleteAsync(
+                LookupKind.RepositoryTypes, TestDb.RepoTypeSvn));
+        }
+
+        await using (var assert = testDb.NewContext())
+        {
+            Assert.False(await assert.RepositoryTypes.AnyAsync(x => x.Id == TestDb.RepoTypeSvn));
         }
     }
 

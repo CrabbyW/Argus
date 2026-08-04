@@ -69,8 +69,8 @@ Sign in as **`msfadmin`** (the username `DbSeeder` creates) with whatever you pu
 `Seed:AdminPassword`. Two things about that password:
 
 - **`DbSeeder` only seeds a user when the table is empty.** Once the database exists, editing
-  `Seed:AdminPassword` does nothing — the seeder skips the whole step. To change the password you
-  have to delete the row from `ApplicationUsers` and restart the API.
+  `Seed:AdminPassword` does nothing — the seeder skips the whole step. Change the password on the
+  **Users** screen instead; that is what it is there for.
 - **It is a demo credential.** Change it before this is reachable by anyone but you, and see the
   pre-deployment checklist below.
 
@@ -80,14 +80,16 @@ Sign in as **`msfadmin`** (the username `DbSeeder` creates) with whatever you pu
 `Server=localhost,1433;Database=Argus;User Id=sa;Password=...;TrustServerCertificate=True;`.
 Nothing else changes; the migrations and the code are provider-identical.
 
-The UI has three sections, each with its own address:
+The UI has these sections, each with its own address:
 
 | Address | What it is |
 |---|---|
-| `/installations` | The grid. Filters, sorting and paging all live in the query string, so a filtered view can be bookmarked and shared. |
-| `/installations/:id/view` | Read-only detail — physical path, repositories, created/modified. |
-| `/lookups/:kind` | The five lookup tables. Renaming here updates every installation at once. |
-| `/repositories` | Source-control locations, maintained per application. |
+| `/installations` | The grid — the `ApplicationInstalation` sheet. Shows foreign keys by default, `?view=names` resolves them. Filters, sorting and paging all live in the query string, so a filtered view can be bookmarked and shared. |
+| `/installations/:id/view` | Read-only detail — physical path, tags, repositories, created/modified — plus a **History** tab: every recorded change to this installation, who made it and what it was before. |
+| `/lookups/:kind` | The lookup tables. Renaming here updates every installation at once. |
+| `/repositories` | Source-control locations, linked many-to-many to installations. |
+| `/users` | Accounts that can sign in. Create, rename, set a password, disable and restore. |
+| `/logs` | The log files the API writes — the action log (one line per request) and the diagnostic log. Read-only: pick a file, filter the lines, optionally auto-refresh. Files expire by `AuditLog:RetentionDays`, never from here. |
 
 `pnpm run dev` starts both apps at once.
 
@@ -130,12 +132,21 @@ PhysicalPaths ─────────┘     DnsEndpointId and PhysicalPathI
 
 Tags ──< InstallationTags >────────┐
 AppRepositories ──< InstallationRepositories >──┴──> ApplicationInstallations
+     └──> RepositoryTypes            (svn / git / bitbucket — a lookup, not an enum)
 
 ApplicationUser                    (login)
+
+EntityJournal ──> ApplicationInstallations
+                                   (change history: one row per changed field)
 ```
 
-Thirteen tables: eight plain lookups, `AppRepositories`, the installation itself, two link
-tables and the user.
+Fifteen tables: ten lookups (the eight above plus `AppRepositories` and `RepositoryTypes`), the
+installation itself, two link tables, the user, and the change journal.
+
+`EntityJournal` records who changed what on an installation, when, and from which value to which —
+including links made from the Repositories screen. Foreign keys are stored as the **name that was
+on screen at the time**, so renaming a machine later cannot rewrite history, and the table has no
+soft delete and no retention: an audit row is written once and kept.
 
 The installation row holds **no names of its own** — every shared value is an `Id` into a lookup
 that must already exist. Its own columns are `IsActive`, `ValidFromDate`, `ValidToDate`,
@@ -160,14 +171,15 @@ Full analysis: [`ai-implementation-plan/4_ef_core_model_and_migration.md`](ai-im
 apps/
   netcorebackends/         .NET solution
     Argus.Api/
-      Controllers/         Installations, Lookups, Auth, Health
+      Controllers/         Installations, Lookups, Repositories, Users, Logs, Auth, Health
       Services/            business logic (interface + implementation)
       Mappers/             static entity -> DTO
-      WebApiPoco/          DTOs (Common/, Installations/, Auth/)
+      WebApiPoco/          DTOs (Common/, Installations/, Auth/, Users/)
       Database/
         Entities/          EF entities
           Configurations/  IEntityTypeConfiguration<T> per entity
           Enums/
+        Interceptors/      EntityJournalInterceptor (fills the change journal)
         Migrations/        InitialCreate
       Middleware/          GlobalExceptionHandlerMiddleware
     Argus.Api.Tests/       xUnit, SQLite in memory
@@ -206,6 +218,10 @@ row that references them. `Tags` became `Tags` + `InstallationTags` on 2026-07-3
 longer free text — and `AppRepositories` moved from the application onto the installation as a
 many-to-many link. See `ai-implementation-plan/10_schema_normalization.md`.
 
+One value went further than the roadplan asked: `RepositoryType`, which the roadplan lists as a
+column of `AppRepositories`, is a lookup table of its own (2026-07-31). It is a shared value like
+any other, and the rule the whole model rests on does not have an exception for short strings.
+
 ### Known deviation from `roadplan`
 
 **Database authentication.** The roadplan asks for SQL username/password authentication. That
@@ -225,6 +241,18 @@ the database rebuilt from `InitialCreate` to the exact seed counts, and the `10_
 §6 walkthrough run end to end. It found one bug — deep-linked filters were dropped on load — which is
 fixed and recorded in that file's §9.
 
+Verified again on 2026-08-01 after the grid was rebuilt to mirror the source sheet: **79 tests**
+green, both the Id and the name view screenshotted against
+`docs/reference/zdrojova-tabulka-4-applicationinstalation.png`. See
+`ai-implementation-plan/11_main_grid_as_the_source_sheet.md` §5.
+
+**2026-08-03 — user management.** `ApplicationUsers` had exactly one row for the life of the
+project, because `DbSeeder` seeds an admin only into an empty table and there was no screen for the
+rest. There is now: `/users` and `/api/users`, with two guards that keep the door open — you cannot
+disable your own account, and you cannot disable the last one that can still sign in. Passwords go
+in through their own endpoint and never come back out. **90 tests** green; exercised against the
+live database, see `ai-implementation-plan/12_user_management.md` §4.
+
 ---
 
 ## Before anyone else can reach this
@@ -232,9 +260,10 @@ fixed and recorded in that file's §9.
 Everything below is deliberately configured for a local demo. None of it is safe on a shared
 network, and none of it is difficult to change:
 
-- **Rotate the admin password.** `msfadmin` with a demo password is a demo credential. Because the
-  seeder skips a non-empty table, this means deleting the `ApplicationUsers` row and restarting
-  with a new `Seed:AdminPassword` — or adding a password-change endpoint, which does not exist yet.
+- **Rotate the admin password.** `msfadmin` / `msfadmin` is a demo credential. Since 2026-08-03
+  this is a two-click job on the **Users** screen — the key button next to the account. Editing
+  `Seed:AdminPassword` still does nothing once the database exists, because the seeder skips a
+  non-empty table; the screen is the way.
 - **Move `Jwt:SigningKey` out of `appsettings`.** It is a symmetric HMAC key: whoever holds it can
   mint tokens for any user. Environment variable, user-secrets or a secret store — the file is
   gitignored, which is not the same as protected. Startup already refuses to boot without 32+

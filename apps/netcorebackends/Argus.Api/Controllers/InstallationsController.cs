@@ -16,17 +16,24 @@ public class InstallationsController : ControllerBase
     private static readonly ILog logger = LogManager.GetLogger(typeof(InstallationsController));
 
     private readonly IInstallationService installationService;
+    private readonly IEntityJournalService journalService;
 
-    public InstallationsController(IInstallationService installationService)
+    public InstallationsController(
+        IInstallationService installationService,
+        IEntityJournalService journalService)
     {
         this.installationService = installationService;
+        this.journalService = journalService;
     }
 
-    [HttpGet]
-    [EndpointName("Installations_GetInstallations")]
+    /// <summary>
+    /// A read, sent as a POST: the filter travels in the body, not in the query string.
+    /// </summary>
+    [HttpPost("search")]
+    [EndpointName("Installations_SearchInstallations")]
     [ProducesResponseType(typeof(ApiResponse<DataViewOutput<InstallationListItemDto>>), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ErrorResponse), StatusCodes.Status401Unauthorized)]
-    public async Task<IActionResult> GetInstallations([FromQuery] InstallationFilterDto filter)
+    public async Task<IActionResult> SearchInstallations([FromBody] InstallationFilterDto filter)
     {
         var result = await installationService.GetInstallationsAsync(filter);
 
@@ -37,8 +44,8 @@ public class InstallationsController : ControllerBase
         });
     }
 
-    [HttpGet("{id:int}")]
-    [EndpointName("Installations_GetInstallationById")]
+    [HttpPost("{id:int}/read")]
+    [EndpointName("Installations_ReadInstallationById")]
     [ProducesResponseType(typeof(ApiResponse<InstallationDetailDto>), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ErrorResponse), StatusCodes.Status404NotFound)]
     public async Task<IActionResult> GetInstallationById(int id)
@@ -56,6 +63,31 @@ public class InstallationsController : ControllerBase
         }
 
         return Ok(new ApiResponse<InstallationDetailDto> { Success = true, Data = result });
+    }
+
+    /// <summary>
+    /// What was changed on this installation, by whom and when. Lives on the installation rather
+    /// than on a journal resource of its own because that is the only way it is ever asked for.
+    /// </summary>
+    [HttpPost("{id:int}/journal")]
+    [EndpointName("Installations_ReadInstallationJournal")]
+    [ProducesResponseType(typeof(ApiResponse<IReadOnlyList<JournalEntryDto>>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ErrorResponse), StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> GetInstallationJournal(int id, [FromBody] JournalReadRequestDto? request)
+    {
+        var entries = await journalService.GetForInstallationAsync(id, request?.MaxEntries ?? 200);
+
+        if (entries is null)
+        {
+            return NotFound(new ErrorResponse
+            {
+                Success = false,
+                ErrorCode = "INSTALLATION_NOT_FOUND",
+                Message = $"Installation {id} was not found."
+            });
+        }
+
+        return Ok(new ApiResponse<IReadOnlyList<JournalEntryDto>> { Success = true, Data = entries });
     }
 
     [HttpPost]

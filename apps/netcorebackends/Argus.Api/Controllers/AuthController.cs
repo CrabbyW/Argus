@@ -46,7 +46,7 @@ public class AuthController : ControllerBase
         return Ok(new ApiResponse<LoginResponseDto> { Success = true, Data = result });
     }
 
-    [HttpGet("me")]
+    [HttpPost("me")]
     [EndpointName("Auth_GetCurrentUser")]
     [ProducesResponseType(typeof(ApiResponse<CurrentUserDto>), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ErrorResponse), StatusCodes.Status401Unauthorized)]
