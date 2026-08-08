@@ -17,6 +17,20 @@ var builder = WebApplication.CreateBuilder(args);
 XmlConfigurator.Configure(new FileInfo(Path.Combine(AppContext.BaseDirectory, "log4net.config")));
 var logger = LogManager.GetLogger(typeof(Program));
 
+// The line above configures log4net for code that asks for a logger itself. The framework does
+// not: EF Core, hosting and the rest write through Microsoft.Extensions.Logging, which knows
+// nothing about that configuration — so the SQL EF sends to the database used to reach the
+// terminal and nothing else. This bridge routes those categories into the same appenders, which
+// is what puts them in logs/argus-api.log and therefore on the /logs screen.
+//
+// ClearProviders first: the default console provider would otherwise print every line a second
+// time next to log4net's own ConsoleAppender.
+//
+// ExternalConfigurationSetup, because log4net is already configured above — left to itself the
+// provider reads log4net.config again and every appender ends up attached twice.
+builder.Logging.ClearProviders();
+builder.Logging.AddLog4Net(new Log4NetProviderOptions { ExternalConfigurationSetup = true });
+
 // --- Configuration ---
 var connectionString = builder.Configuration.GetConnectionString("ArgusDatabase")
     ?? throw new InvalidOperationException(

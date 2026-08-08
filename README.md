@@ -89,7 +89,7 @@ The UI has these sections, each with its own address:
 | `/lookups/:kind` | The lookup tables. Renaming here updates every installation at once. |
 | `/repositories` | Source-control locations, linked many-to-many to installations. |
 | `/users` | Accounts that can sign in. Create, rename, set a password, disable and restore. |
-| `/logs` | The log files the API writes — the action log (one line per request) and the diagnostic log. Read-only: pick a file, filter the lines, optionally auto-refresh. Files expire by `AuditLog:RetentionDays`, never from here. |
+| `/logs` | The log files the API writes — the action log (one line per request) and the diagnostic log, which carries the framework's own output including the SQL EF Core sends to the database. Read-only: pick a file, filter the lines, optionally auto-refresh. Files expire by `AuditLog:RetentionDays`, never from here. |
 
 `pnpm run dev` starts both apps at once.
 
