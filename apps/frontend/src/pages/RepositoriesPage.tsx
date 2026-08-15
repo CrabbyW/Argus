@@ -34,13 +34,14 @@ import { itemsOf, useLookups } from '../hooks/useLookups';
 import { useAppToast } from '../hooks/useAppToast';
 import { ConfirmDialog } from '../components/ConfirmDialog';
 import { useSheetStyles } from '../styles/sheetStyles';
+import { useControlRowStyles } from '../styles/controlRowStyles';
 
 const useStyles = makeStyles({
   root: { display: 'flex', flexDirection: 'column', rowGap: '20px' },
   pageHeader: { display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' },
   spacer: { flexGrow: 1 },
   muted: { color: tokens.colorNeutralForeground3 },
-  filterRow: { display: 'flex', gap: '12px', alignItems: 'end', flexWrap: 'wrap' },
+  // Layout comes from `useControlRowStyles.row`; only what is specific to this row stays here.
   filter: { minWidth: '220px' },
   form: { display: 'flex', flexDirection: 'column', rowGap: '12px' },
   mono: { fontFamily: tokens.fontFamilyMonospace, fontSize: tokens.fontSizeBase200 },
@@ -80,6 +81,7 @@ interface InstallationOption {
 export function RepositoriesPage() {
   const styles = useStyles();
   const sheet = useSheetStyles();
+  const controlRow = useControlRowStyles();
   const toast = useAppToast();
   const { lookups, error: lookupsError } = useLookups();
   const repositoryTypes = itemsOf(lookups, 'repositorytypes');
@@ -243,7 +245,7 @@ export function RepositoriesPage() {
         </MessageBar>
       )}
 
-      <div className={styles.filterRow}>
+      <div className={controlRow.row}>
         <Field label="Application" className={styles.filter}>
           <Dropdown
             aria-label="Application"

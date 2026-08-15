@@ -12,6 +12,14 @@ import { makeStyles, tokens } from '@fluentui/react-components';
  * Colours come from Fluent tokens rather than Excel's literal palette so the theme still
  * switches. Only the structure is borrowed.
  */
+/**
+ * The width of the leftmost numeric column — the Id on the lookup and user sheets, the row-number
+ * gutter on the installations grid. One constant because these screens are read side by side and
+ * a gutter that changes width from tab to tab makes the tables look misaligned with each other.
+ * Wide enough for five digits in the monospaced face `idCell` sets.
+ */
+export const ID_COLUMN_WIDTH = '70px';
+
 export const useSheetStyles = makeStyles({
   // Ruled on all four sides. `borderCollapse` matters: without it the doubled borders between
   // adjacent cells read as a thick grey seam instead of a single line.

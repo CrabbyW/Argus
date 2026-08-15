@@ -39,7 +39,7 @@ import type { User, UserUpsert } from '../api/types';
 import { useAuth } from '../auth/AuthContext';
 import { useAppToast } from '../hooks/useAppToast';
 import { ConfirmDialog } from '../components/ConfirmDialog';
-import { useSheetStyles } from '../styles/sheetStyles';
+import { ID_COLUMN_WIDTH, useSheetStyles } from '../styles/sheetStyles';
 
 /** Mirrors `UserPasswordRules.MinimumLength` on the server, which enforces it regardless. */
 const MINIMUM_PASSWORD_LENGTH = 8;
@@ -267,7 +267,7 @@ export function UsersPage() {
         <div className={styles.tableWrapper}>
           <Table size="small" className={sheet.table}>
             <colgroup>
-              <col style={{ width: '70px' }} />
+              <col style={{ width: ID_COLUMN_WIDTH }} />
               <col style={{ width: '200px' }} />
               <col />
               <col style={{ width: '110px' }} />

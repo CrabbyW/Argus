@@ -20,6 +20,7 @@ import {
 import { ArrowClockwiseRegular, DismissRegular, SearchRegular } from '@fluentui/react-icons';
 import { api } from '../api/client';
 import type { LogContent, LogFile } from '../api/types';
+import { useControlRowStyles } from '../styles/controlRowStyles';
 
 /** How many lines of the tail to ask for. The server clamps anything larger at 5000. */
 const LINE_LIMITS = [200, 500, 1000, 5000];
@@ -34,7 +35,7 @@ const useStyles = makeStyles({
   pageHeader: { display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' },
   spacer: { flexGrow: 1 },
   muted: { color: tokens.colorNeutralForeground3 },
-  controls: { display: 'flex', alignItems: 'flex-end', gap: '12px', flexWrap: 'wrap' },
+  // Layout comes from `useControlRowStyles.row`.
   file: { minWidth: '260px' },
   search: { minWidth: '260px', flexGrow: 1, maxWidth: '520px' },
 
@@ -131,6 +132,7 @@ function severityOf(line: string): 'error' | 'warn' | null {
  */
 export function LogsPage() {
   const styles = useStyles();
+  const controlRow = useControlRowStyles();
   const [searchParams, setSearchParams] = useSearchParams();
 
   // In the URL, so a colleague can be sent the exact view — this file, this filter.
@@ -292,7 +294,7 @@ export function LogsPage() {
         </Button>
       </div>
 
-      <div className={styles.controls}>
+      <div className={controlRow.row}>
         <Field label="File" className={styles.file}>
           <Dropdown
             aria-label="File"

@@ -151,13 +151,13 @@ export function App() {
     );
   }
 
-  // Signed out: every address shows the login screen, and the address itself is kept, so
-  // signing in lands on whatever page was originally asked for.
+  // Signed out: every address shows the login screen. Signing in then goes to the installations
+  // grid rather than back to the address the session ended on — see `LoginPage`.
   if (!user) {
     return (
       <>
         <LoginPage />
-        <Toaster toasterId={TOASTER_ID} position="top-end" />
+        <Toaster toasterId={TOASTER_ID} position="bottom-end" />
       </>
     );
   }
@@ -214,7 +214,9 @@ export function App() {
         </Routes>
       </main>
 
-      <Toaster toasterId={TOASTER_ID} position="top-end" />
+      {/* Bottom-right: the top-right corner is where the header's account controls and the
+          grid's own headers are, and a toast landing there covered what had just been acted on. */}
+      <Toaster toasterId={TOASTER_ID} position="bottom-end" />
     </div>
   );
 }

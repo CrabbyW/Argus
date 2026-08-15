@@ -306,6 +306,7 @@ const useStyles = makeStyles({
     width: '100%',
     maxWidth: '400px',
     padding: '32px',
+    boxSizing: 'border-box',
     borderRadius: '12px',
     border: '1px solid #222',
     backgroundColor: '#121212',
@@ -349,8 +350,14 @@ const useStyles = makeStyles({
     flexDirection: 'column',
     rowGap: '10px',
   },
+  // Every control in the card — both inputs, the button, the error box — is laid out on the same
+  // box: `border-box` sizing, full width, the same 1px border and the same horizontal padding.
+  // Without that they each resolve to a different rendered width (padding and border are added
+  // outside `width: 100%` when nothing resets `box-sizing`, and the file has no global reset), so
+  // their left and right edges, and the borders drawn on them, do not line up.
   input: {
     width: '100%',
+    boxSizing: 'border-box',
     padding: '0.65rem 0.85rem',
     borderRadius: '6px',
     border: '1px solid #333',
@@ -360,6 +367,9 @@ const useStyles = makeStyles({
     fontFamily: 'inherit',
     outlineStyle: 'none',
     '::placeholder': { color: '#666' },
+    // State changes move the colour only — the 1px solid is repeated verbatim (Griffel's types
+    // take `border` but not a bare `borderColor`), so nothing nudges the field's geometry as it
+    // is hovered or focused.
     ':hover': { border: '1px solid #444' },
     // The design's inputs drop the focus ring; something has to replace it, or the form is
     // unusable from the keyboard. This is that, in the design's own palette.
@@ -371,10 +381,13 @@ const useStyles = makeStyles({
   },
   submit: {
     width: '100%',
+    boxSizing: 'border-box',
     marginTop: '4px',
-    padding: '0.65rem',
+    padding: '0.65rem 0.85rem',
     borderRadius: '6px',
-    border: 'none',
+    // Transparent rather than `none`, so the button is exactly as wide and as tall as the fields
+    // above it instead of 2px short in each direction.
+    border: '1px solid transparent',
     backgroundColor: '#ededed',
     color: '#000',
     fontWeight: 500,
@@ -394,8 +407,9 @@ const useStyles = makeStyles({
   },
   error: {
     width: '100%',
+    boxSizing: 'border-box',
     marginTop: '16px',
-    padding: '0.6rem 0.75rem',
+    padding: '0.6rem 0.85rem',
     borderRadius: '6px',
     border: '1px solid rgba(248,81,73,0.4)',
     backgroundColor: 'rgba(248,81,73,0.12)',
