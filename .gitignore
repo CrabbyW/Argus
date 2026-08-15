@@ -22,6 +22,7 @@ secrets/
 
 # --- Logs ---
 logs/
+!apps/netcorebackends/Argus.Api/WebApiPoco/Logs/
 *.log
 
 # --- OS / editors ---
