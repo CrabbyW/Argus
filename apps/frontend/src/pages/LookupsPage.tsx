@@ -30,7 +30,7 @@ import type { LookupItem, LookupKind } from '../api/types';
 import { useAppToast } from '../hooks/useAppToast';
 import { useLookupMetadata } from '../hooks/useLookupMetadata';
 import { ConfirmDialog } from '../components/ConfirmDialog';
-import { ID_COLUMN_WIDTH, useSheetStyles } from '../styles/sheetStyles';
+import { ACTIONS_COLUMN_WIDTH, ID_COLUMN_WIDTH, useSheetStyles } from '../styles/sheetStyles';
 import { useControlRowStyles } from '../styles/controlRowStyles';
 import { toDnsName } from '../utils/dnsName';
 
@@ -119,6 +119,19 @@ export function LookupsPage() {
    * than kept as a second row for a machine the lookup already has.
    */
   const isDnsEndpoint = activeKind === 'dnsendpoints';
+
+  /**
+   * How much room the Name column gets on this tab.
+   *
+   * A lookup name is not one kind of thing. On Stages it is "RC0"; on DNS endpoints it is a host
+   * name and on Applications a product name several words long — those two run past 380px and
+   * were clipped mid-value, which is the one column on this screen that must be readable whole.
+   * Physical and root paths are just as long, so they are sized with them.
+   */
+  const nameColumnWidth =
+    activeKind && ['dnsendpoints', 'appnames', 'physicalpaths', 'rootpaths'].includes(activeKind)
+      ? '520px'
+      : '380px';
 
   // Id + Name + Actions, plus whichever optional columns this tab shows.
   const columnCount =
@@ -339,7 +352,9 @@ export function LookupsPage() {
         <Spinner label="Loading..." />
       ) : (
         <div className={styles.tableWrapper}>
-          <Table size="small" className={sheet.table}>
+          {/* The widths below are a floor, not a fixed size: a wide window spreads the slack over
+              the columns, a narrow one scrolls sideways rather than squeezing the names. */}
+          <Table size="small" style={{ width: '100%', minWidth: '900px' }} className={sheet.table}>
             {/*
               Fluent's Table is `table-layout: fixed`, so without this the four columns each take
               a quarter and the Id column ends up wider than the names it numbers. Id is as narrow
@@ -347,11 +362,17 @@ export function LookupsPage() {
             */}
             <colgroup>
               <col style={{ width: ID_COLUMN_WIDTH }} />
-              <col style={{ width: '260px' }} />
+              {/* A lookup name is a DNS endpoint or a physical path as often as it is a word —
+                  `vipsprava.1220.cz`, `c:\inetpub\callcenter.rc0`. 380px holds the longest of the
+                  seeded values on one line; 260 broke them in two.
+
+                  One column on the sheet is left unsized so the Id keeps its 70px (see
+                  `sheetStyles`): the description where the tab has one, otherwise the name. */}
+              <col style={tab?.hasDescription ? { width: nameColumnWidth } : undefined} />
               {tab?.hasDescription && <col />}
               {tab?.hasSortOrder && <col style={{ width: '110px' }} />}
-              {tab?.hasLoadBalancer && <col style={{ width: '140px' }} />}
-              <col style={{ width: '110px' }} />
+              {tab?.hasLoadBalancer && <col style={{ width: '150px' }} />}
+              <col style={{ width: ACTIONS_COLUMN_WIDTH }} />
             </colgroup>
 
             <TableHeader>
@@ -379,9 +400,13 @@ export function LookupsPage() {
               {rows.map((item) => (
                 <TableRow key={item.id}>
                   <TableCell className={sheet.idCell}>{item.id}</TableCell>
-                  <TableCell>{item.name}</TableCell>
+                  <TableCell className={sheet.textCell} title={item.name}>
+                    {item.name}
+                  </TableCell>
                   {tab?.hasDescription && (
-                    <TableCell>{item.description ?? <span className={styles.muted}>—</span>}</TableCell>
+                    <TableCell className={sheet.textCell} title={item.description ?? undefined}>
+                      {item.description ?? <span className={styles.muted}>—</span>}
+                    </TableCell>
                   )}
                   {tab?.hasSortOrder && <TableCell>{item.sortOrder}</TableCell>}
                   {tab?.hasLoadBalancer && (

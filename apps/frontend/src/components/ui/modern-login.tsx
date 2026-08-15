@@ -132,16 +132,97 @@ function compileShader(gl: WebGL2RenderingContext, type: number, source: string)
 }
 
 /**
- * Every failure path here ends in "draw nothing". The background is decoration, so a machine
- * without WebGL2, or with a driver that rejects the shader, gets the plain black backdrop and a
- * sign-in form that works exactly as well.
+ * The same grid drawn on a 2D canvas, for browsers that hand out no WebGL2 context at all.
+ *
+ * That is not the rare case it sounds like: Brave's fingerprinting shield switches WebGL off
+ * outright, and hardware acceleration is off by default on plenty of remote-desktop sessions —
+ * which is how half of an internal tool gets used. On those the screen was black with a card
+ * floating in it, and nothing said why.
+ *
+ * A port of the fragment shader above, not a lookalike: the same 10px spacing and 3px dots in CSS
+ * pixels (the shader works in a space twice that size), the same ten brightness steps, the same
+ * reshuffle every five seconds and the same intro sweeping out from the centre. Redrawn only when
+ * something actually changes — during the intro, and once per five-second bucket after it —
+ * because filling twenty thousand dots on the CPU sixty times a second would be a real cost for
+ * a background.
+ */
+function drawGridWith2d(
+  context: CanvasRenderingContext2D,
+  width: number,
+  height: number,
+  seconds: number,
+) {
+  const spacing = GRID_SPACING / 2;
+  const dot = DOT_SIZE / 2;
+  const columns = Math.ceil(width / spacing);
+  const rows = Math.ceil(height / spacing);
+  const centreColumn = columns / 2;
+  const centreRow = rows / 2;
+
+  // The shader's `random(vec2)`, which is a hash rather than a generator: the same cell must get
+  // the same number on every frame, or the grid boils instead of holding still.
+  const random = (x: number, y: number) => {
+    const value = Math.sin(x * 127.1 + y * 311.7) * 43758.5453;
+    return value - Math.floor(value);
+  };
+
+  context.clearRect(0, 0, width, height);
+  context.fillStyle = '#fff';
+
+  for (let column = 0; column < columns; column += 1) {
+    for (let row = 0; row < rows; row += 1) {
+      const showOffset = random(column, row);
+      const bucket = Math.floor(seconds / 5 + showOffset + 5);
+      const distance = Math.hypot(centreColumn - column, centreRow - row);
+
+      // Until the sweep reaches this dot it is not on screen at all.
+      if (distance * 0.01 + showOffset * 0.15 > seconds * 3) {
+        continue;
+      }
+
+      context.globalAlpha = OPACITIES[Math.floor(random(column * bucket, row * bucket) * 10) % 10];
+      context.fillRect(column * spacing, row * spacing, dot, dot);
+    }
+  }
+
+  context.globalAlpha = 1;
+}
+
+/**
+ * WebGL where it is available, the 2D port where it is not — never both, so the grid is one grid.
+ * Only a driver that rejects the shader still ends in a plain black backdrop.
  */
 function DotGrid({ className, animate }: { className?: string; animate: boolean }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
+  /**
+   * Bumped when the browser hands the WebGL context back, which re-runs the effect below and
+   * rebuilds the program, buffers and uniforms on it.
+   *
+   * A context is not forever. The driver resets, the GPU process restarts, the tab sits in the
+   * background too long, or too many contexts are open at once — and the browser takes it away.
+   * Everything created on it dies with it, so the grid stops drawing and the canvas stays
+   * transparent: black page, no dots, exactly as if the screen had lost its design. Nothing
+   * announces this; the page has to listen for it and build the scene again.
+   */
+  const [contextEpoch, setContextEpoch] = useState(0);
+
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
+
+    // Without `preventDefault` on the loss event the browser never fires `restored`, so this
+    // pair has to be registered before anything is created on the context.
+    const onLost = (event: Event) => event.preventDefault();
+    const onRestored = () => setContextEpoch((epoch) => epoch + 1);
+
+    canvas.addEventListener('webglcontextlost', onLost);
+    canvas.addEventListener('webglcontextrestored', onRestored);
+
+    const removeContextListeners = () => {
+      canvas.removeEventListener('webglcontextlost', onLost);
+      canvas.removeEventListener('webglcontextrestored', onRestored);
+    };
 
     const gl = canvas.getContext('webgl2', {
       alpha: true,
@@ -149,13 +230,78 @@ function DotGrid({ className, animate }: { className?: string; animate: boolean 
       depth: false,
       stencil: false,
     });
-    if (!gl) return;
+    if (!gl) {
+      const context = canvas.getContext('2d');
+
+      if (!context) {
+        return removeContextListeners;
+      }
+
+      const ratio = Math.min(window.devicePixelRatio || 1, 2);
+      let width = 0;
+      let height = 0;
+      let lastPaint = -Infinity;
+      let frameId = 0;
+
+      const paint = (seconds: number) => {
+        drawGridWith2d(context, width, height, seconds);
+      };
+
+      const resize = () => {
+        width = canvas.clientWidth || window.innerWidth;
+        height = canvas.clientHeight || window.innerHeight;
+
+        canvas.width = Math.max(1, Math.round(width * ratio));
+        canvas.height = Math.max(1, Math.round(height * ratio));
+
+        // The buffer is in device pixels, the grid is laid out in CSS pixels.
+        context.setTransform(ratio, 0, 0, ratio, 0, 0);
+
+        lastPaint = -Infinity;
+        paint(animate ? 0 : SETTLED_TIME);
+      };
+
+      resize();
+
+      const observer = new ResizeObserver(resize);
+      observer.observe(canvas);
+
+      if (animate) {
+        const startedAt = performance.now();
+
+        const renderFrame = () => {
+          frameId = requestAnimationFrame(renderFrame);
+
+          const seconds = (performance.now() - startedAt) / 1000;
+
+          // Every frame while the sweep is running, then twelve times a second.
+          //
+          // Not "once every five seconds": each dot carries its own offset into that five-second
+          // cycle, so they change one after another rather than all at once — a global tick
+          // repainted the grid every five seconds and it stood still in between, which is not a
+          // slower version of the design but a different one. Twelve a second is enough to catch
+          // the staggered changes and costs a fraction of a full-rate redraw.
+          if (seconds < SETTLED_TIME || seconds - lastPaint >= 1 / 12) {
+            lastPaint = seconds;
+            paint(seconds);
+          }
+        };
+
+        renderFrame();
+      }
+
+      return () => {
+        cancelAnimationFrame(frameId);
+        observer.disconnect();
+        removeContextListeners();
+      };
+    }
 
     const vertexShader = compileShader(gl, gl.VERTEX_SHADER, VERTEX_SHADER);
     const fragmentShader = compileShader(gl, gl.FRAGMENT_SHADER, FRAGMENT_SHADER);
     const program = gl.createProgram();
 
-    if (!vertexShader || !fragmentShader || !program) return;
+    if (!vertexShader || !fragmentShader || !program) return removeContextListeners;
 
     gl.attachShader(program, vertexShader);
     gl.attachShader(program, fragmentShader);
@@ -163,7 +309,7 @@ function DotGrid({ className, animate }: { className?: string; animate: boolean 
 
     if (!gl.getProgramParameter(program, gl.LINK_STATUS)) {
       console.error('Dot grid program failed to link:', gl.getProgramInfoLog(program));
-      return;
+      return removeContextListeners;
     }
 
     gl.useProgram(program);
@@ -240,6 +386,10 @@ function DotGrid({ className, animate }: { className?: string; animate: boolean 
     return () => {
       cancelAnimationFrame(frameId);
       observer.disconnect();
+      removeContextListeners();
+
+      // A lost context has already destroyed all of this, and calling into it only logs errors.
+      if (gl.isContextLost()) return;
 
       gl.deleteProgram(program);
       gl.deleteShader(vertexShader);
@@ -249,7 +399,7 @@ function DotGrid({ className, animate }: { className?: string; animate: boolean 
       // Note: no WEBGL_lose_context here. StrictMode remounts this effect onto the same canvas,
       // and a canvas whose context has been lost hands the lost one straight back.
     };
-  }, [animate]);
+  }, [animate, contextEpoch]);
 
   return <canvas ref={canvasRef} className={className} aria-hidden="true" />;
 }
@@ -270,6 +420,10 @@ const useStyles = makeStyles({
     boxSizing: 'border-box',
     overflow: 'hidden',
     backgroundColor: '#000',
+    // No CSS stand-in for the dot grid here. One was tried: it draws *underneath* the canvas, so
+    // whenever WebGL is working — which is nearly always — the screen carries two grids at once,
+    // a still one showing through the shader's animated one. Close enough to look like the design
+    // in a screenshot, wrong on the actual page. The grid is the shader's alone.
     color: '#fff',
     fontFamily: tokens.fontFamilyBase,
   },

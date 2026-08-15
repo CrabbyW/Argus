@@ -19,6 +19,7 @@ import { DismissRegular, EditRegular } from '@fluentui/react-icons';
 import { api } from '../api/client';
 import type { InstallationDetail } from '../api/types';
 import { InstallationHistory } from './InstallationHistory';
+import { formatDate, formatDateTime } from '../utils/dates';
 
 const useStyles = makeStyles({
   // Wide enough for a physical path on one line, narrow enough to leave the grid readable
@@ -195,16 +196,17 @@ export function InstallationDetailDrawer({ installationId, onClose, onEdit }: Pr
                 )}
               </Row>
               <Row label="Valid">
-                {detail.validFromDate} → {detail.validToDate ?? 'open'}
+                {formatDate(detail.validFromDate)} →{' '}
+                {detail.validToDate ? formatDate(detail.validToDate) : 'open'}
               </Row>
               <Row label="Status">
                 <Badge appearance="filled" color={detail.isActive ? 'success' : 'informative'}>
                   {detail.isActive ? 'Active' : 'Inactive'}
                 </Badge>
               </Row>
-              <Row label="Created">{new Date(detail.createdUtc).toLocaleString()}</Row>
+              <Row label="Created">{formatDateTime(detail.createdUtc)}</Row>
               <Row label="Modified">
-                {detail.modifiedUtc ? new Date(detail.modifiedUtc).toLocaleString() : dash}
+                {detail.modifiedUtc ? formatDateTime(detail.modifiedUtc) : dash}
               </Row>
 
               <Row label="Repositories">

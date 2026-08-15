@@ -25,6 +25,7 @@ import {
   Title3,
   Tooltip,
   makeStyles,
+  mergeClasses,
   tokens,
 } from '@fluentui/react-components';
 import { AddRegular, DeleteRegular, EditRegular } from '@fluentui/react-icons';
@@ -33,7 +34,7 @@ import type { AppRepository, AppRepositoryUpsert } from '../api/types';
 import { itemsOf, useLookups } from '../hooks/useLookups';
 import { useAppToast } from '../hooks/useAppToast';
 import { ConfirmDialog } from '../components/ConfirmDialog';
-import { useSheetStyles } from '../styles/sheetStyles';
+import { ACTIONS_COLUMN_WIDTH, useSheetStyles } from '../styles/sheetStyles';
 import { useControlRowStyles } from '../styles/controlRowStyles';
 
 const useStyles = makeStyles({
@@ -289,7 +290,18 @@ export function RepositoriesPage() {
         <Spinner label="Loading repositories..." />
       ) : (
         <div className={styles.tableWrapper}>
-          <Table size="small" className={sheet.table}>
+          {/* Fixed layout needs the widths spelled out, or the five columns each take a fifth and
+              a repository URL wraps while "Type" sits in an empty half-column. A floor, as on the
+              other sheets; the Actions strip matches theirs. */}
+          <Table size="small" style={{ width: '100%', minWidth: '1080px' }} className={sheet.table}>
+            <colgroup>
+              <col style={{ width: '150px' }} />
+              <col style={{ width: '360px' }} />
+              <col style={{ width: '240px' }} />
+              <col />
+              <col style={{ width: ACTIONS_COLUMN_WIDTH }} />
+            </colgroup>
+
             <TableHeader>
               <TableRow>
                 <TableHeaderCell className={sheet.headerCell}>Type</TableHeaderCell>
@@ -314,7 +326,12 @@ export function RepositoriesPage() {
                   <TableCell>
                     {repo.repositoryTypeName ?? <span className={styles.muted}>not recorded</span>}
                   </TableCell>
-                  <TableCell className={styles.mono}>{repo.repositoryUrl}</TableCell>
+                  <TableCell
+                    className={mergeClasses(styles.mono, sheet.textCell)}
+                    title={repo.repositoryUrl}
+                  >
+                    {repo.repositoryUrl}
+                  </TableCell>
                   <TableCell>
                     {repo.installationIds.length === 0 ? (
                       <span className={styles.muted}>unattached</span>
@@ -328,7 +345,7 @@ export function RepositoriesPage() {
                       </div>
                     )}
                   </TableCell>
-                  <TableCell>
+                  <TableCell className={sheet.textCell} title={repo.description ?? undefined}>
                     {repo.description ?? <span className={styles.muted}>—</span>}
                   </TableCell>
                   <TableCell>

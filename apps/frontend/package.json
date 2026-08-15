@@ -12,6 +12,7 @@
   "dependencies": {
     "@fluentui/react-components": "^9.68.0",
     "@fluentui/react-icons": "^2.0.310",
+    "exceljs": "^4.4.0",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
     "react-router-dom": "^7.9.0"

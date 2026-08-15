@@ -39,7 +39,8 @@ import type { User, UserUpsert } from '../api/types';
 import { useAuth } from '../auth/AuthContext';
 import { useAppToast } from '../hooks/useAppToast';
 import { ConfirmDialog } from '../components/ConfirmDialog';
-import { ID_COLUMN_WIDTH, useSheetStyles } from '../styles/sheetStyles';
+import { ACTIONS_COLUMN_WIDTH, ID_COLUMN_WIDTH, useSheetStyles } from '../styles/sheetStyles';
+import { formatDateTime } from '../utils/dates';
 
 /** Mirrors `UserPasswordRules.MinimumLength` on the server, which enforces it regardless. */
 const MINIMUM_PASSWORD_LENGTH = 8;
@@ -65,14 +66,7 @@ const useStyles = makeStyles({
 const blankForm: UserUpsert = { username: '', displayName: '', password: '' };
 
 /** Local dates read better than a UTC string; the value itself stays UTC on the wire. */
-function formatUtc(value: string | null): string {
-  if (!value) {
-    return '';
-  }
-
-  const parsed = new Date(value);
-  return Number.isNaN(parsed.getTime()) ? '' : parsed.toLocaleString();
-}
+const formatUtc = formatDateTime;
 
 /**
  * Who can sign in to Argus.
@@ -265,15 +259,19 @@ export function UsersPage() {
         <Spinner label="Loading users..." />
       ) : (
         <div className={styles.tableWrapper}>
-          <Table size="small" className={sheet.table}>
+          {/* A floor, not a fixed size — same as the other sheets. */}
+          <Table size="small" style={{ width: '100%', minWidth: '1010px' }} className={sheet.table}>
             <colgroup>
               <col style={{ width: ID_COLUMN_WIDTH }} />
-              <col style={{ width: '200px' }} />
+              {/* A domain account is `GA\jan.novak`, and the "you" badge shares the cell. */}
+              <col style={{ width: '240px' }} />
+              {/* Unsized: the display name takes the surplus so the Id keeps its 70px. */}
               <col />
               <col style={{ width: '110px' }} />
-              <col style={{ width: '170px' }} />
-              <col style={{ width: '170px' }} />
-              <col style={{ width: '140px' }} />
+              {/* Date and time on one line, never broken between them. */}
+              <col style={{ width: '175px' }} />
+              <col style={{ width: '175px' }} />
+              <col style={{ width: ACTIONS_COLUMN_WIDTH }} />
             </colgroup>
 
             <TableHeader>
@@ -303,7 +301,7 @@ export function UsersPage() {
                 return (
                   <TableRow key={user.id} className={user.isEnabled ? undefined : styles.disabledRow}>
                     <TableCell className={sheet.idCell}>{user.id}</TableCell>
-                    <TableCell>
+                    <TableCell className={sheet.textCell} title={user.username}>
                       {user.username}
                       {isSelf && (
                         <>
@@ -314,7 +312,9 @@ export function UsersPage() {
                         </>
                       )}
                     </TableCell>
-                    <TableCell>{user.displayName}</TableCell>
+                    <TableCell className={sheet.textCell} title={user.displayName}>
+                      {user.displayName}
+                    </TableCell>
                     <TableCell>
                       {user.isEnabled ? (
                         <Badge appearance="tint" color="success" size="small">

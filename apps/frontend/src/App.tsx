@@ -26,6 +26,7 @@ import { useAuth } from './auth/AuthContext';
 import { useTheme } from './theme/ThemeContext';
 import { BrandLink } from './components/BrandLink';
 import { TOASTER_ID } from './hooks/useAppToast';
+import { AboutPage } from './pages/AboutPage';
 import { LoginPage } from './pages/LoginPage';
 import { InstallationsPage } from './pages/InstallationsPage';
 import { LogsPage } from './pages/LogsPage';
@@ -81,6 +82,7 @@ function activeTab(pathname: string): string {
   if (pathname.startsWith('/repositories')) return 'repositories';
   if (pathname.startsWith('/users')) return 'users';
   if (pathname.startsWith('/logs')) return 'logs';
+  if (pathname.startsWith('/about')) return 'about';
   return 'installations';
 }
 
@@ -176,6 +178,9 @@ export function App() {
           <Tab value="repositories">Repositories</Tab>
           <Tab value="users">Users</Tab>
           <Tab value="logs">Logs</Tab>
+          {/* Last, and after a screen full of data on purpose: it is the story behind the name,
+              not part of the day's work. */}
+          <Tab value="about">About</Tab>
         </TabList>
 
         <div className={styles.spacer} />
@@ -207,6 +212,7 @@ export function App() {
           <Route path="/repositories" element={<RepositoriesPage />} />
           <Route path="/users" element={<UsersPage />} />
           <Route path="/logs" element={<LogsPage />} />
+          <Route path="/about" element={<AboutPage />} />
           <Route path="*" element={<NotFoundPage />} />
         </Routes>
       </main>

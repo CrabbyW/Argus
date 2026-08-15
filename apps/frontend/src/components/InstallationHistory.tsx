@@ -18,6 +18,7 @@ import {
 import { api } from '../api/client';
 import type { JournalEntry } from '../api/types';
 import { useSheetStyles } from '../styles/sheetStyles';
+import { formatDateTime } from '../utils/dates';
 
 const useStyles = makeStyles({
   root: { display: 'flex', flexDirection: 'column', rowGap: '12px' },
@@ -42,10 +43,7 @@ const useStyles = makeStyles({
 });
 
 /** Local time reads better than UTC; the value on the wire stays UTC. */
-function formatUtc(value: string): string {
-  const parsed = new Date(value);
-  return Number.isNaN(parsed.getTime()) ? value : parsed.toLocaleString();
-}
+const formatUtc = formatDateTime;
 
 /** The badge colour carries the same meaning as the word, for scanning down the column. */
 function actionColor(action: JournalEntry['action']) {

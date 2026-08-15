@@ -21,6 +21,7 @@ import { ArrowClockwiseRegular, DismissRegular, SearchRegular } from '@fluentui/
 import { api } from '../api/client';
 import type { LogContent, LogFile } from '../api/types';
 import { useControlRowStyles } from '../styles/controlRowStyles';
+import { formatDateTime } from '../utils/dates';
 
 /** How many lines of the tail to ask for. The server clamps anything larger at 5000. */
 const LINE_LIMITS = [200, 500, 1000, 5000];
@@ -66,14 +67,7 @@ const useStyles = makeStyles({
   empty: { padding: '16px', color: tokens.colorNeutralForeground3 },
 });
 
-function formatUtc(value: string | null | undefined): string {
-  if (!value) {
-    return '';
-  }
-
-  const parsed = new Date(value);
-  return Number.isNaN(parsed.getTime()) ? '' : parsed.toLocaleString();
-}
+const formatUtc = formatDateTime;
 
 function formatSize(bytes: number): string {
   if (bytes < 1024) {

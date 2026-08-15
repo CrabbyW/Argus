@@ -66,7 +66,10 @@ public class LookupServiceTests
                 ResubmittedAsTheUiWould(read, "https://paha2.ga.local"));
 
             Assert.NotNull(updated);
-            Assert.Equal("https://paha2.ga.local", updated.Name);
+            // Saved as the host alone: the descriptor normalises a pasted address, so the URL
+            // above comes back as the endpoint it names. That rule is the subject of its own
+            // tests; here it only has to not cost the flag.
+            Assert.Equal("paha2.ga.local", updated.Name);
             Assert.True(updated.IsLoadBalancer);
         }
 
@@ -74,7 +77,7 @@ public class LookupServiceTests
         {
             var endpoint = await assert.DnsEndpoints.SingleAsync(x => x.Id == TestDb.PahaEndpoint);
 
-            Assert.Equal("https://paha2.ga.local", endpoint.Name);
+            Assert.Equal("paha2.ga.local", endpoint.Name);
             Assert.True(endpoint.IsLoadBalancer);
         }
     }

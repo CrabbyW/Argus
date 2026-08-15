@@ -37,6 +37,7 @@ import {
   EditRegular,
   EyeRegular,
   FilterRegular,
+  TableSimpleRegular,
 } from '@fluentui/react-icons';
 import { api } from '../api/client';
 import type { DataViewOutput, InstallationFilter, InstallationListItem } from '../api/types';
@@ -46,7 +47,9 @@ import { InstallationDialog } from '../components/InstallationDialog';
 import { InstallationDetailDrawer } from '../components/InstallationDetailDrawer';
 import { LookupPickerDrawer } from '../components/LookupPickerDrawer';
 import { ConfirmDialog } from '../components/ConfirmDialog';
-import { ID_COLUMN_WIDTH, useSheetStyles } from '../styles/sheetStyles';
+import { downloadXlsx, timestampedFileName } from '../utils/xlsxExport';
+import { formatDate } from '../utils/dates';
+import { ACTIONS_COLUMN_WIDTH, ID_COLUMN_WIDTH, useSheetStyles } from '../styles/sheetStyles';
 import { useControlRowStyles } from '../styles/controlRowStyles';
 
 /**
@@ -63,21 +66,25 @@ import { useControlRowStyles } from '../styles/controlRowStyles';
  * https://vipsprava.1220.cz, c:\inetpub\callcenter.rc0) fits without truncating, and the total
  * still leaves Active and Actions on screen rather than off the right edge.
  */
-const COLUMNS = [
+const COLUMNS: { key: string; width: number; flexible?: boolean }[] = [
   // The row-number gutter, as on a spreadsheet: position in the result, not the record's Id.
   // Shares its width with the Id column on the other sheets so the grids line up with each other.
   { key: 'rowNumber', width: Number.parseInt(ID_COLUMN_WIDTH, 10) },
-  { key: 'machine', width: 135 },
-  { key: 'application', width: 175 },
-  { key: 'stage', width: 90 },
-  { key: 'arch', width: 60 },
-  { key: 'dns', width: 195 },
-  { key: 'rootPath', width: 150 },
-  { key: 'physicalPath', width: 195 },
-  { key: 'tags', width: 150 },
-  { key: 'valid', width: 145 },
-  { key: 'active', width: 85 },
-  { key: 'actions', width: 135 },
+  { key: 'machine', width: 160 },
+  { key: 'application', width: 210 },
+  { key: 'stage', width: 100 },
+  { key: 'arch', width: 70 },
+  { key: 'dns', width: 230 },
+  { key: 'rootPath', width: 180 },
+  // The one unsized column: it takes the window's surplus, so every other width — the Id gutter
+  // above all — stays the size it asks for. See `sheetStyles`.
+  { key: 'physicalPath', width: 260, flexible: true },
+  { key: 'tags', width: 180 },
+  // "15. 8. 2026 → 31. 12. 2026" on one line: the pair is read as a span, and a date broken
+  // across two lines stops being one.
+  { key: 'valid', width: 190 },
+  { key: 'active', width: 90 },
+  { key: 'actions', width: Number.parseInt(ACTIONS_COLUMN_WIDTH, 10) },
 ];
 
 const widthOf = (columns: { width: number }[]) =>
@@ -184,6 +191,9 @@ const useStyles = makeStyles({
   pathCell: { display: 'flex', alignItems: 'center', gap: '2px', minWidth: 0 },
   pathText: { overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' },
   copyButton: { flexShrink: 0 },
+  // The width of that button plus the gap, so a row without a path lines up with the rows that
+  // have one.
+  pathPlaceholder: { paddingLeft: '26px' },
   // A destructive action must not look identical to Edit sitting next to it.
   destructive: {
     color: tokens.colorPaletteRedForeground1,
@@ -198,12 +208,20 @@ const useStyles = makeStyles({
 const DEFAULT_SORT = 'machineName';
 
 /**
- * Rows per page. A sheet is read by scanning it, so the page is sized to be scrolled rather than
- * paged through — 75 covers most of a real inventory in one or two pages.
+ * Rows per page: a screenful. The grid is read without scrolling and the pager moves through it,
+ * which is what an inventory checked row by row wants.
  *
  * Declared above `emptyPage`, which reads it while this module is still being evaluated.
  */
-const DEFAULT_PAGE_SIZE = 75;
+const DEFAULT_PAGE_SIZE = 24;
+
+/**
+ * The export is the whole filtered result, not the visible page — a spreadsheet of 24 rows out of
+ * 900 would be a trap. The server caps a page at 200 (`DataViewFilterBase.MaxPageSize`), so the
+ * export asks for that maximum and walks the pages; the guard stops a paging bug from looping.
+ */
+const EXPORT_PAGE_SIZE = 200;
+const EXPORT_MAX_PAGES = 100;
 
 const emptyPage: DataViewOutput<InstallationListItem> = {
   items: [],
@@ -313,6 +331,7 @@ export function InstallationsPage() {
   const [pendingDelete, setPendingDelete] = useState<InstallationListItem | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
   const [showAdvanced, setShowAdvanced] = useState(false);
+  const [isExporting, setIsExporting] = useState(false);
 
   /**
    * Which lookup the picker drawer is open on, or null. The whole descriptor is kept rather than
@@ -411,6 +430,74 @@ export function InstallationsPage() {
       setError(message);
     } finally {
       setIsDeleting(false);
+    }
+  }
+
+  /**
+   * The columns of the exported sheet, in the order of the grid — minus the row-number gutter and
+   * the actions, which are furniture rather than data. Dates and the two flags go out as plain
+   * values: a filtered spreadsheet is sorted and filtered again in Excel, and "Active" sorts
+   * where a badge would not.
+   */
+  async function exportToExcel() {
+    setIsExporting(true);
+
+    try {
+      const items: InstallationListItem[] = [];
+
+      for (let pageNumber = 1; pageNumber <= EXPORT_MAX_PAGES; pageNumber += 1) {
+        const chunk = await api.getInstallations({
+          ...filter,
+          pageNumber,
+          pageSize: EXPORT_PAGE_SIZE,
+        });
+
+        items.push(...chunk.items);
+
+        if (chunk.items.length < EXPORT_PAGE_SIZE || pageNumber >= chunk.totalPages) {
+          break;
+        }
+      }
+
+      await downloadXlsx(
+        timestampedFileName('argus-installations'),
+        'Installations',
+        // Šířky ve znacích, odměřené proti stejným hodnotám jako sloupce gridu — cesta ani DNS
+        // se v sešitu nesmí schovat za sousední buňku.
+        [
+          { header: 'Machine', width: 18 },
+          { header: 'Application', width: 26 },
+          { header: 'Stage', width: 12 },
+          { header: 'Arch', width: 8 },
+          { header: 'DNS', width: 30 },
+          { header: 'Root path', width: 22 },
+          { header: 'Physical path', width: 40 },
+          { header: 'Tags', width: 28 },
+          { header: 'Valid from', width: 13 },
+          { header: 'Valid to', width: 13 },
+          { header: 'Active', width: 10 },
+        ],
+        items.map((item) => [
+          item.machineName,
+          item.appName,
+          item.appStageName,
+          item.processorArchitecture,
+          item.dnsName ?? '',
+          item.rootPath,
+          item.physicalPath ?? '',
+          item.tags.join(', '),
+          formatDate(item.validFromDate),
+          item.validToDate ? formatDate(item.validToDate) : '',
+          item.isActive ? 'Active' : 'Inactive',
+        ]),
+      );
+
+      toast.success(`Exported ${items.length} record${items.length === 1 ? '' : 's'}.`);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Failed to export installations.';
+      toast.error('Export failed', message);
+    } finally {
+      setIsExporting(false);
     }
   }
 
@@ -703,6 +790,14 @@ export function InstallationsPage() {
         <Button icon={<ArrowClockwiseRegular />} onClick={() => void load(filter)}>
           Refresh
         </Button>
+        {/* Exports what the filter says, not what the page shows. */}
+        <Button
+          icon={<TableSimpleRegular />}
+          disabled={isExporting || page.totalCount === 0}
+          onClick={() => void exportToExcel()}
+        >
+          {isExporting ? 'Exporting...' : 'Export to Excel'}
+        </Button>
         <Button
           appearance="primary"
           icon={<AddRegular />}
@@ -904,7 +999,10 @@ export function InstallationsPage() {
         >
           <colgroup>
             {COLUMNS.map((column) => (
-              <col key={column.key} style={{ width: `${column.width}px` }} />
+              <col
+                key={column.key}
+                style={column.flexible ? undefined : { width: `${column.width}px` }}
+              />
             ))}
           </colgroup>
 
@@ -983,8 +1081,11 @@ export function InstallationsPage() {
                 <TableCell title={item.physicalPath ?? undefined}>
                   {item.physicalPath ? (
                     <div className={styles.pathCell}>
-                      <span className={styles.pathText}>{item.physicalPath}</span>
-                      {/* The column is too narrow to show a long path in full, so the value is
+                      {/* Before the path, not after it: trailing, the button sat wherever that
+                          row's text happened to end, so the column had a ragged line of buttons.
+                          Leading, they stack in one column and the paths still start together.
+
+                          The column is too narrow to show a long path in full, so the value is
                           usually read by copying it into an RDP session or a script — which is
                           otherwise a click into the detail drawer and a manual selection. */}
                       <Tooltip content="Copy path" relationship="label">
@@ -1000,9 +1101,12 @@ export function InstallationsPage() {
                           }}
                         />
                       </Tooltip>
+                      <span className={styles.pathText}>{item.physicalPath}</span>
                     </div>
                   ) : (
-                    <span className={styles.muted}>—</span>
+                    // Indented past the copy button, so the dash sits where the paths above and
+                    // below it start rather than out on its own at the cell edge.
+                    <span className={mergeClasses(styles.muted, styles.pathPlaceholder)}>—</span>
                   )}
                 </TableCell>
                 <TableCell title={item.tags.join(', ')}>
@@ -1025,8 +1129,12 @@ export function InstallationsPage() {
                   )}
                 </TableCell>
                 <TableCell className={styles.nowrap}>
-                  {item.validFromDate} →{' '}
-                  {item.validToDate ?? <span className={styles.muted}>open</span>}
+                  {formatDate(item.validFromDate)} →{' '}
+                  {item.validToDate ? (
+                    formatDate(item.validToDate)
+                  ) : (
+                    <span className={styles.muted}>open</span>
+                  )}
                 </TableCell>
                 <TableCell>
                   <Badge appearance="filled" color={item.isActive ? 'success' : 'informative'}>
