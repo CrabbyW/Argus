@@ -1,4 +1,4 @@
-import { Link as RouterLink, Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
+import { Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
 import {
   Button,
   Menu,
@@ -24,7 +24,7 @@ import {
 } from '@fluentui/react-icons';
 import { useAuth } from './auth/AuthContext';
 import { useTheme } from './theme/ThemeContext';
-import { ArgusMark } from './components/ArgusMark';
+import { BrandLink } from './components/BrandLink';
 import { TOASTER_ID } from './hooks/useAppToast';
 import { LoginPage } from './pages/LoginPage';
 import { InstallationsPage } from './pages/InstallationsPage';
@@ -165,10 +165,7 @@ export function App() {
   return (
     <div className={styles.shell}>
       <header className={styles.header}>
-        <RouterLink to="/installations" className={styles.brand}>
-          <ArgusMark size={24} className={styles.mark} />
-          Argus
-        </RouterLink>
+        <BrandLink className={styles.brand} markClassName={styles.mark} />
 
         <TabList
           selectedValue={activeTab(location.pathname)}
