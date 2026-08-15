@@ -293,10 +293,12 @@ export function RepositoriesPage() {
           {/* Fixed layout needs the widths spelled out, or the five columns each take a fifth and
               a repository URL wraps while "Type" sits in an empty half-column. A floor, as on the
               other sheets; the Actions strip matches theirs. */}
-          <Table size="small" style={{ width: '100%', minWidth: '1080px' }} className={sheet.table}>
+          <Table size="small" style={{ width: '100%', minWidth: '1160px' }} className={sheet.table}>
             <colgroup>
               <col style={{ width: '150px' }} />
-              <col style={{ width: '360px' }} />
+              {/* A repository URL is the longest value on this sheet and the one worth reading in
+                  full — https://tfs.ga.local/tfs/DefaultCollection/_git/CallCenter. */}
+              <col style={{ width: '440px' }} />
               <col style={{ width: '240px' }} />
               <col />
               <col style={{ width: ACTIONS_COLUMN_WIDTH }} />

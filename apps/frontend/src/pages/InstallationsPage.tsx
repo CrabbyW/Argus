@@ -62,28 +62,34 @@ import { useControlRowStyles } from '../styles/controlRowStyles';
  * for installation 14, they ask for RC0 of CallCenter on GAIIS2.
  *
  * Fluent's Table is `table-layout: fixed`, so these widths are the only thing setting column
- * size. Sized against the real seed values at 1600px — the longest of each (Data Exchange WebApi,
- * https://vipsprava.1220.cz, c:\inetpub\callcenter.rc0) fits without truncating, and the total
- * still leaves Active and Actions on screen rather than off the right edge.
+ * size. Sized against the real seed values — the longest of each (Data Exchange WebApi,
+ * https://vipsprava.1220.cz, c:\inetpub\callcenter.rc0) fits without truncating.
+ *
+ * The sum is the constraint. It becomes the table's `min-width`, so once it passes the width of
+ * the window the grid gains a horizontal scrollbar and the last columns leave the screen — which
+ * is the failure this whole layout exists to avoid. Twelve columns adding up to 1725px leave
+ * about 150px spare in a 1920px window once the page's 48px of padding and a scrollbar are taken
+ * off — room for a wider window to breathe, none for a thirteenth column. Anything wanting more
+ * has to take it from another column rather than from the total.
  */
 const COLUMNS: { key: string; width: number; flexible?: boolean }[] = [
   // The row-number gutter, as on a spreadsheet: position in the result, not the record's Id.
   // Shares its width with the Id column on the other sheets so the grids line up with each other.
   { key: 'rowNumber', width: Number.parseInt(ID_COLUMN_WIDTH, 10) },
-  { key: 'machine', width: 160 },
+  { key: 'machine', width: 150 },
   { key: 'application', width: 210 },
-  { key: 'stage', width: 100 },
-  { key: 'arch', width: 70 },
-  { key: 'dns', width: 230 },
-  { key: 'rootPath', width: 180 },
+  { key: 'stage', width: 95 },
+  { key: 'arch', width: 65 },
+  { key: 'dns', width: 215 },
+  { key: 'rootPath', width: 160 },
   // The one unsized column: it takes the window's surplus, so every other width — the Id gutter
   // above all — stays the size it asks for. See `sheetStyles`.
-  { key: 'physicalPath', width: 260, flexible: true },
-  { key: 'tags', width: 180 },
+  { key: 'physicalPath', width: 200, flexible: true },
+  { key: 'tags', width: 165 },
   // "15. 8. 2026 → 31. 12. 2026" on one line: the pair is read as a span, and a date broken
   // across two lines stops being one.
-  { key: 'valid', width: 190 },
-  { key: 'active', width: 90 },
+  { key: 'valid', width: 170 },
+  { key: 'active', width: 85 },
   { key: 'actions', width: Number.parseInt(ACTIONS_COLUMN_WIDTH, 10) },
 ];
 

@@ -56,6 +56,7 @@ internal sealed class LookupHandler<TEntity> : ILookupHandler
         var name = descriptor.NormalizeName(dto.Name);
         EnsureNameIsNotEmpty(name);
         EnsureNameFits(name);
+        EnsureNameMatchesFormat(name);
         await EnsureNameIsFreeAsync(name, excludeId: null);
 
         var entity = new TEntity();
@@ -76,6 +77,7 @@ internal sealed class LookupHandler<TEntity> : ILookupHandler
         var name = descriptor.NormalizeName(dto.Name);
         EnsureNameIsNotEmpty(name);
         EnsureNameFits(name);
+        EnsureNameMatchesFormat(name);
         await EnsureNameIsFreeAsync(name, excludeId: id);
 
         var entity = await Rows.FirstOrDefaultAsync(x => x.Id == id);
@@ -141,6 +143,20 @@ internal sealed class LookupHandler<TEntity> : ILookupHandler
         if (name.Length > max)
         {
             throw new ArgumentException($"{descriptor.Kind} names are limited to {max} characters.");
+        }
+    }
+
+    /// <summary>
+    /// Refuses a name that cannot be stored in the kind's format. Runs on the normalized value,
+    /// so what reaches it is what would be written to the row — a pasted URL or a trailing
+    /// backslash has already been dealt with, and what is left is a value that really is not a
+    /// host name or not a path.
+    /// </summary>
+    private void EnsureNameMatchesFormat(string name)
+    {
+        if (descriptor.ValidateName(name) is string problem)
+        {
+            throw new ArgumentException(problem);
         }
     }
 

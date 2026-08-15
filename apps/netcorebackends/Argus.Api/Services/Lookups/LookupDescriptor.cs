@@ -31,6 +31,9 @@ public interface ILookupDescriptor
 
     bool HasLoadBalancer { get; }
 
+    /// <summary>The kind's name format in one line, or null when its names are free text.</summary>
+    string? NameHint { get; }
+
     /// <summary>
     /// The entity this kind maps to. Exposed so callers that need the kind's configuration — the
     /// per-kind name length above all — can read it off the EF model instead of keeping a second
@@ -93,6 +96,23 @@ public sealed class LookupDescriptor<TEntity> : ILookupDescriptor
     /// DNS endpoints reduce a pasted URL to its host — see <see cref="DnsName"/>.
     /// </summary>
     public Func<string, string> NormalizeName { get; init; } = name => name.Trim();
+
+    /// <summary>
+    /// Checks the normalized name against the kind's format, returning the message to refuse it
+    /// with or <c>null</c> when it is fine. Kinds whose names are free text — an application, a
+    /// stage — leave this alone; the ones with a format wire it to <see cref="LookupFormats"/>.
+    ///
+    /// Runs after normalization on purpose: the rule then only has to describe the stored form,
+    /// and everything that can be fixed rather than refused already has been.
+    /// </summary>
+    public Func<string, string?> ValidateName { get; init; } = _ => null;
+
+    /// <summary>
+    /// What the format is, in one line, for the field's hint on screen. Served by
+    /// <c>GET /api/lookups</c> so the rule is stated where the value is typed instead of only
+    /// after a save has been refused.
+    /// </summary>
+    public string? NameHint { get; init; }
 
     public bool IsReadOnly { get; init; }
 

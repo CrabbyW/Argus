@@ -26,6 +26,9 @@ public static class LookupRegistry
                 Projection = x => new LookupItemDto { Id = x.Id, Name = x.Name, Description = x.Description },
                 OrderBy = q => q.OrderBy(x => x.Name),
                 Apply = (e, dto) => { e.Name = dto.Name; e.Description = dto.Description; },
+                NormalizeName = LookupFormats.NormalizeMachine,
+                ValidateName = LookupFormats.ValidateMachine,
+                NameHint = "A host name, stored upper case — e.g. GAIIS1.",
                 Usage = Usage.FromInstallations(id => i => i.MachineId == id)
             },
 
@@ -85,8 +88,11 @@ public static class LookupRegistry
                     e.Description = dto.Description;
                     e.IsLoadBalancer = dto.IsLoadBalancer;
                 },
-                // The one kind whose names have a format: a host name, never a URL.
+                // A host name, never a URL: a pasted address is reduced to its host, and what
+                // cannot be read as a host name at all is refused.
                 NormalizeName = DnsName.Normalize,
+                ValidateName = LookupFormats.ValidateDnsName,
+                NameHint = "A host name — e.g. paha.ga.local. A pasted URL is reduced to its host.",
                 Usage = Usage.FromInstallations(id => i => i.DnsEndpointId == id)
             },
 
@@ -98,6 +104,9 @@ public static class LookupRegistry
                 Projection = x => new LookupItemDto { Id = x.Id, Name = x.Name },
                 OrderBy = q => q.OrderBy(x => x.Name),
                 Apply = (e, dto) => e.Name = dto.Name,
+                NormalizeName = LookupFormats.NormalizeRootPath,
+                ValidateName = LookupFormats.ValidateRootPath,
+                NameHint = "A url path starting with / — e.g. /callcenter.rc0. The site root is /.",
                 Usage = Usage.FromInstallations(id => i => i.RootPathId == id)
             },
 
@@ -109,6 +118,9 @@ public static class LookupRegistry
                 Projection = x => new LookupItemDto { Id = x.Id, Name = x.Name },
                 OrderBy = q => q.OrderBy(x => x.Name),
                 Apply = (e, dto) => e.Name = dto.Name,
+                NormalizeName = LookupFormats.NormalizePhysicalPath,
+                ValidateName = LookupFormats.ValidatePhysicalPath,
+                NameHint = @"An absolute path — e.g. c:\inetpub\callcenter or \\server\share.",
                 Usage = Usage.FromInstallations(id => i => i.PhysicalPathId == id)
             },
 
@@ -121,6 +133,9 @@ public static class LookupRegistry
                 Projection = x => new LookupItemDto { Id = x.Id, Name = x.Name, Description = x.Description },
                 OrderBy = q => q.OrderBy(x => x.Name),
                 Apply = (e, dto) => { e.Name = dto.Name; e.Description = dto.Description; },
+                NormalizeName = LookupFormats.NormalizeTag,
+                ValidateName = LookupFormats.ValidateTag,
+                NameHint = "Lower case, words joined by hyphens — e.g. incoming-postal-web.",
                 Usage = Usage.FromInstallations(id => i => i.InstallationTags.Any(link => link.TagId == id))
             },
 

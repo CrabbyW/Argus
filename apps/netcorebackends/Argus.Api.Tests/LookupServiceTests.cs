@@ -36,6 +36,42 @@ public class LookupServiceTests
         return data;
     }
 
+    /// <summary>
+    /// A name in the kind's own format, for the theories that run against every writable kind.
+    ///
+    /// One literal cannot serve them all any more: machines are stored upper case, root paths
+    /// start with a slash and physical paths are absolute, so "round-trip-source" comes back
+    /// changed on three kinds and is refused outright on two. The alternative — relaxing the
+    /// formats so a test literal passes — would mean the rules exist everywhere except where they
+    /// are checked.
+    /// </summary>
+    private static string NameFor(LookupKind kind, string word) => kind switch
+    {
+        LookupKind.Machines => word.ToUpperInvariant().Replace('-', 'X'),
+        LookupKind.RootPaths => $"/{word}",
+        LookupKind.PhysicalPaths => $@"c:\{word}",
+        _ => word
+    };
+
+    /// <summary>
+    /// The same, padded to an exact length — the length theory needs a name of precisely the
+    /// kind's maximum, and a prefix like <c>c:\</c> counts towards it.
+    /// </summary>
+    private static string NameOfLength(LookupKind kind, int length, char fill)
+    {
+        var prefix = kind switch
+        {
+            LookupKind.RootPaths => "/",
+            LookupKind.PhysicalPaths => @"c:\",
+            _ => string.Empty
+        };
+
+        var body = new string(kind == LookupKind.Machines ? char.ToUpperInvariant(fill) : fill,
+                              length - prefix.Length);
+
+        return prefix + body;
+    }
+
     // --- The regression this suite exists for -------------------------------------------
 
     /// <summary>
@@ -153,7 +189,7 @@ public class LookupServiceTests
         {
             created = await new LookupService(db).CreateAsync(kind, new LookupUpsertDto
             {
-                Name = "round-trip-source",
+                Name = NameFor(kind, "round-trip-source"),
                 Description = "described",
                 SortOrder = 42,
                 IsLoadBalancer = true
@@ -162,11 +198,13 @@ public class LookupServiceTests
 
         await using (var db = testDb.NewContext())
         {
+            var renamed = NameFor(kind, "round-trip-renamed");
+
             var updated = await new LookupService(db).UpdateAsync(
-                kind, created.Id, ResubmittedAsTheUiWould(created, "round-trip-renamed"));
+                kind, created.Id, ResubmittedAsTheUiWould(created, renamed));
 
             Assert.NotNull(updated);
-            Assert.Equal("round-trip-renamed", updated.Name);
+            Assert.Equal(renamed, updated.Name);
             Assert.Equal(created.Description, updated.Description);
             Assert.Equal(created.SortOrder, updated.SortOrder);
             Assert.Equal(created.IsLoadBalancer, updated.IsLoadBalancer);
@@ -263,13 +301,13 @@ public class LookupServiceTests
                     .Value;
 
         var atTheLimit = await new LookupService(db).CreateAsync(
-            kind, new LookupUpsertDto { Name = new string('x', max) });
+            kind, new LookupUpsertDto { Name = NameOfLength(kind, max, 'x') });
 
         Assert.Equal(max, atTheLimit.Name.Length);
 
         var error = await Assert.ThrowsAsync<ArgumentException>(
             () => new LookupService(db).CreateAsync(
-                      kind, new LookupUpsertDto { Name = new string('y', max + 1) }));
+                      kind, new LookupUpsertDto { Name = NameOfLength(kind, max + 1, 'y') }));
 
         Assert.Contains(max.ToString(), error.Message);
     }

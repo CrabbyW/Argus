@@ -36,7 +36,8 @@ public class LookupService : ILookupService
                 MaxNameLength = LookupModel.MaxNameLength(db, descriptor.EntityType),
                 HasDescription = descriptor.HasDescription,
                 HasSortOrder = descriptor.HasSortOrder,
-                HasLoadBalancer = descriptor.HasLoadBalancer
+                HasLoadBalancer = descriptor.HasLoadBalancer,
+                NameHint = descriptor.NameHint
             })
             .ToList();
 

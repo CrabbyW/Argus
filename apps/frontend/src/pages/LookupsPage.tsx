@@ -130,8 +130,8 @@ export function LookupsPage() {
    */
   const nameColumnWidth =
     activeKind && ['dnsendpoints', 'appnames', 'physicalpaths', 'rootpaths'].includes(activeKind)
-      ? '520px'
-      : '380px';
+      ? '560px'
+      : '400px';
 
   // Id + Name + Actions, plus whichever optional columns this tab shows.
   const columnCount =
@@ -285,11 +285,9 @@ export function LookupsPage() {
             label="Name"
             required
             className={styles.grow}
-            hint={
-              isDnsEndpoint
-                ? 'Host name only — a pasted URL is reduced to its host.'
-                : `Up to ${tab?.maxNameLength} characters.`
-            }
+            // The kind's own rule where it has one, straight from the server that enforces it —
+            // stating the format before the save is worth more than explaining it afterwards.
+            hint={tab?.nameHint ?? `Up to ${tab?.maxNameLength} characters.`}
           >
             <Input
               value={editor.name}
@@ -354,7 +352,7 @@ export function LookupsPage() {
         <div className={styles.tableWrapper}>
           {/* The widths below are a floor, not a fixed size: a wide window spreads the slack over
               the columns, a narrow one scrolls sideways rather than squeezing the names. */}
-          <Table size="small" style={{ width: '100%', minWidth: '900px' }} className={sheet.table}>
+          <Table size="small" style={{ width: '100%', minWidth: '1000px' }} className={sheet.table}>
             {/*
               Fluent's Table is `table-layout: fixed`, so without this the four columns each take
               a quarter and the Id column ends up wider than the names it numbers. Id is as narrow

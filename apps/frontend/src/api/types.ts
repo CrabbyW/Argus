@@ -225,6 +225,13 @@ export interface LookupMetadata {
   hasDescription: boolean;
   hasSortOrder: boolean;
   hasLoadBalancer: boolean;
+
+  /**
+   * The kind's name format in one line, or null where names are free text. Comes from the
+   * registry that enforces it, so the hint on screen and the rule the save is refused by cannot
+   * drift apart.
+   */
+  nameHint: string | null;
 }
 
 /**

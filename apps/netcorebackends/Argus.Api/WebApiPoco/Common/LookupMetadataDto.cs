@@ -30,4 +30,11 @@ public class LookupMetadataDto
     public bool HasSortOrder { get; set; }
 
     public bool HasLoadBalancer { get; set; }
+
+    /// <summary>
+    /// The kind's name format in one line, e.g. "A tag is lower-case letters, digits and
+    /// hyphens". Null where names are free text. Shown as the field's hint, so the rule is stated
+    /// before a save is refused rather than only after.
+    /// </summary>
+    public string? NameHint { get; set; }
 }
