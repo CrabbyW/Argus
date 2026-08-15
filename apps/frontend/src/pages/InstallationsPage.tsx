@@ -31,6 +31,8 @@ import {
   ArrowClockwiseRegular,
   ChevronDownRegular,
   ChevronUpRegular,
+  CopyAddRegular,
+  CopyRegular,
   DeleteRegular,
   EditRegular,
   EyeRegular,
@@ -44,7 +46,8 @@ import { InstallationDialog } from '../components/InstallationDialog';
 import { InstallationDetailDrawer } from '../components/InstallationDetailDrawer';
 import { LookupPickerDrawer } from '../components/LookupPickerDrawer';
 import { ConfirmDialog } from '../components/ConfirmDialog';
-import { useSheetStyles } from '../styles/sheetStyles';
+import { ID_COLUMN_WIDTH, useSheetStyles } from '../styles/sheetStyles';
+import { useControlRowStyles } from '../styles/controlRowStyles';
 
 /**
  * The grid shows resolved values, never references.
@@ -62,7 +65,8 @@ import { useSheetStyles } from '../styles/sheetStyles';
  */
 const COLUMNS = [
   // The row-number gutter, as on a spreadsheet: position in the result, not the record's Id.
-  { key: 'rowNumber', width: 44 },
+  // Shares its width with the Id column on the other sheets so the grids line up with each other.
+  { key: 'rowNumber', width: Number.parseInt(ID_COLUMN_WIDTH, 10) },
   { key: 'machine', width: 135 },
   { key: 'application', width: 175 },
   { key: 'stage', width: 90 },
@@ -73,7 +77,7 @@ const COLUMNS = [
   { key: 'tags', width: 150 },
   { key: 'valid', width: 145 },
   { key: 'active', width: 85 },
-  { key: 'actions', width: 105 },
+  { key: 'actions', width: 135 },
 ];
 
 const widthOf = (columns: { width: number }[]) =>
@@ -97,7 +101,8 @@ const useStyles = makeStyles({
   },
   // The everyday row: search plus the facets that answer the roadplan's three headline questions.
   // Everything rarer lives behind the "More filters" disclosure so the grid starts near the top.
-  filterBar: { display: 'flex', alignItems: 'flex-end', gap: '8px', flexWrap: 'wrap' },
+  // Tighter than the shared row's 12px: this bar carries seven controls.
+  filterBar: { gap: '8px' },
   searchField: { flexGrow: 1, minWidth: '220px' },
   // Every control gets a label, so a narrow window drops columns instead of jumbling them.
   filterGrid: {
@@ -151,7 +156,6 @@ const useStyles = makeStyles({
     ':hover': { textDecoration: 'underline' },
     ':focus-visible': { outline: `2px solid ${tokens.colorStrokeFocus2}`, outlineOffset: '2px' },
   },
-  mono: { fontFamily: tokens.fontFamilyMonospace, fontSize: tokens.fontSizeBase200 },
 
   // The row is the control that opens the detail, so it has to look like one and take focus
   // like one. No colour of its own — the hover fill is the sheet's, already defined.
@@ -176,6 +180,10 @@ const useStyles = makeStyles({
   tagText: { display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' },
   nowrap: { whiteSpace: 'nowrap' },
   rowActions: { display: 'flex', gap: '4px' },
+  // The path plus its copy button. The text still truncates; the button keeps its size.
+  pathCell: { display: 'flex', alignItems: 'center', gap: '2px', minWidth: 0 },
+  pathText: { overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' },
+  copyButton: { flexShrink: 0 },
   // A destructive action must not look identical to Edit sitting next to it.
   destructive: {
     color: tokens.colorPaletteRedForeground1,
@@ -288,6 +296,7 @@ const SORTABLE: Record<string, string> = {
 export function InstallationsPage() {
   const styles = useStyles();
   const sheet = useSheetStyles();
+  const controlRow = useControlRowStyles();
   const navigate = useNavigate();
   const location = useLocation();
   const toast = useAppToast();
@@ -633,6 +642,43 @@ export function InstallationsPage() {
   }
 
   const dialogMode = routeId === 'new' ? 'create' : routeId ? 'edit' : null;
+
+  /**
+   * Cloning is `/installations/new?cloneFrom=<id>` rather than component state, for the same
+   * reason the filters and the selection are in the URL: a half-filled form that survives a
+   * reload and can be handed to a colleague is worth more than one that cannot.
+   */
+  const cloneFromId =
+    dialogMode === 'create' && searchParams.get('cloneFrom')
+      ? Number(searchParams.get('cloneFrom'))
+      : null;
+
+  /** The grid's own query string: the filters, without the dialog's `cloneFrom`. */
+  function gridSearch(): string {
+    const search = new URLSearchParams(searchParams);
+    search.delete('cloneFrom');
+    return search.toString();
+  }
+
+  /**
+   * `navigator.clipboard` is unavailable on an insecure origin, which is exactly how an internal
+   * tool tends to be reached — `http://gaiis2/argus` rather than https. The failure is reported
+   * rather than swallowed, so a button that cannot work says so instead of looking like it worked.
+   */
+  async function copyPath(path: string) {
+    try {
+      await navigator.clipboard.writeText(path);
+      toast.success('Path copied.');
+    } catch {
+      toast.error('Could not copy', 'The browser refused clipboard access on this address.');
+    }
+  }
+
+  function cloneInstallation(id: number) {
+    const search = new URLSearchParams(searchParams);
+    search.set('cloneFrom', String(id));
+    navigate({ pathname: '/installations/new', search: search.toString() });
+  }
   const isDetailRoute = location.pathname.endsWith('/view');
 
   /**
@@ -679,7 +725,7 @@ export function InstallationsPage() {
       )}
 
       <div className={styles.filterCard}>
-        <div className={styles.filterBar}>
+        <div className={mergeClasses(controlRow.row, styles.filterBar)}>
           <Field label="Search" className={styles.searchField}>
             <Input
               placeholder="Machine, app, path, DNS, tags..."
@@ -704,26 +750,30 @@ export function InstallationsPage() {
             patchFilter({ dnsEndpointId: id }), styles.barFacet,
           )}
 
-          <Button
-            icon={<FilterRegular />}
-            iconPosition="before"
-            onClick={() => setShowAdvanced((open) => !open)}
-            aria-expanded={showAdvanced}
-          >
-            More filters{advancedCount > 0 ? ` (${advancedCount})` : ''}
-            {showAdvanced ? <ChevronUpRegular /> : <ChevronDownRegular />}
-          </Button>
+          {/* Offset onto the same line as the labelled controls beside them — see
+              `useControlRowStyles`. */}
+          <div className={controlRow.buttonRow}>
+            <Button
+              icon={<FilterRegular />}
+              iconPosition="before"
+              onClick={() => setShowAdvanced((open) => !open)}
+              aria-expanded={showAdvanced}
+            >
+              More filters{advancedCount > 0 ? ` (${advancedCount})` : ''}
+              {showAdvanced ? <ChevronUpRegular /> : <ChevronDownRegular />}
+            </Button>
 
-          {/* Named for its result, not its mechanism: the button is pressed to see everything
-              again, and "Show all" says that where "Clear" only described what it did to the
-              controls. */}
-          <Button
-            appearance="subtle"
-            disabled={writeFilter(filter).toString() === ''}
-            onClick={clearFilters}
-          >
-            Show all
-          </Button>
+            {/* Named for its result, not its mechanism: the button is pressed to see everything
+                again, and "Show all" says that where "Clear" only described what it did to the
+                controls. */}
+            <Button
+              appearance="subtle"
+              disabled={writeFilter(filter).toString() === ''}
+              onClick={clearFilters}
+            >
+              Show all
+            </Button>
+          </div>
         </div>
 
         {activeChips.length > 0 && (
@@ -924,17 +974,36 @@ export function InstallationsPage() {
                 <TableCell className={styles.truncate} title={item.dnsName ?? undefined}>
                   {item.dnsName ?? <span className={styles.muted}>—</span>}
                 </TableCell>
-                <TableCell
-                  className={mergeClasses(styles.mono, styles.truncate)}
-                  title={item.rootPath}
-                >
+                {/* Base font like every other cell: the paths used to be set in the monospaced
+                    face, which made these two columns read as a different kind of data from the
+                    rest of the row. */}
+                <TableCell className={styles.truncate} title={item.rootPath}>
                   {item.rootPath}
                 </TableCell>
-                <TableCell
-                  className={mergeClasses(styles.mono, styles.truncate)}
-                  title={item.physicalPath ?? undefined}
-                >
-                  {item.physicalPath ?? <span className={styles.muted}>—</span>}
+                <TableCell title={item.physicalPath ?? undefined}>
+                  {item.physicalPath ? (
+                    <div className={styles.pathCell}>
+                      <span className={styles.pathText}>{item.physicalPath}</span>
+                      {/* The column is too narrow to show a long path in full, so the value is
+                          usually read by copying it into an RDP session or a script — which is
+                          otherwise a click into the detail drawer and a manual selection. */}
+                      <Tooltip content="Copy path" relationship="label">
+                        <Button
+                          size="small"
+                          appearance="subtle"
+                          className={styles.copyButton}
+                          icon={<CopyRegular />}
+                          onClick={(event) => {
+                            // The row itself opens the detail drawer.
+                            event.stopPropagation();
+                            void copyPath(item.physicalPath as string);
+                          }}
+                        />
+                      </Tooltip>
+                    </div>
+                  ) : (
+                    <span className={styles.muted}>—</span>
+                  )}
                 </TableCell>
                 <TableCell title={item.tags.join(', ')}>
                   {item.tags.length === 0 ? (
@@ -984,6 +1053,14 @@ export function InstallationsPage() {
                         onClick={() => navigate(`/installations/${item.id}`)}
                       />
                     </Tooltip>
+                    <Tooltip content="Clone" relationship="label">
+                      <Button
+                        size="small"
+                        appearance="subtle"
+                        icon={<CopyAddRegular />}
+                        onClick={() => cloneInstallation(item.id)}
+                      />
+                    </Tooltip>
                     <Tooltip content="Decommission" relationship="label">
                       <Button
                         size="small"
@@ -1031,12 +1108,13 @@ export function InstallationsPage() {
       {!isDetailRoute && dialogMode && (
         <InstallationDialog
           installationId={dialogMode === 'create' ? null : Number(routeId)}
+          cloneFromId={cloneFromId}
           lookups={lookups}
           lookupMetadata={lookupMetadata}
-          onClose={() => navigate({ pathname: '/installations', search: searchParams.toString() })}
+          onClose={() => navigate({ pathname: '/installations', search: gridSearch() })}
           onSaved={() => {
             toast.success(dialogMode === 'create' ? 'Installation created.' : 'Installation saved.');
-            navigate({ pathname: '/installations', search: searchParams.toString() });
+            navigate({ pathname: '/installations', search: gridSearch() });
             void load(filter);
             void reloadLookups();
           }}

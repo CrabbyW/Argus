@@ -23,10 +23,11 @@ import type { InstallationUpsert, LookupItem } from '../api/types';
 import type { LookupMetadata } from '../api/types';
 import type { Lookups } from '../hooks/useLookups';
 import { itemsOf, maxNameLengthOf } from '../hooks/useLookups';
+import { useControlRowStyles } from '../styles/controlRowStyles';
 
 const useStyles = makeStyles({
   form: { display: 'flex', flexDirection: 'column', rowGap: '12px' },
-  row: { display: 'flex', gap: '12px', flexWrap: 'wrap' },
+  // Layout comes from `useControlRowStyles.row`, shared with the filter bars.
   half: { flex: '1 1 220px' },
   // Fluent gives Combobox and Dropdown a 250px minimum, wider than the flex basis above.
   grow: { minWidth: 0, width: '100%' },
@@ -35,6 +36,13 @@ const useStyles = makeStyles({
 interface Props {
   /** null = create a new installation. */
   installationId: number | null;
+  /**
+   * Create, but starting from an existing installation's values rather than an empty form. The
+   * same deployment on the next machine, or the next stage of the same application, differs from
+   * the one beside it in a field or two — retyping the other eight is where a mistyped path comes
+   * from. Ignored while `installationId` is set: an edit already has values of its own.
+   */
+  cloneFromId?: number | null;
   lookups: Lookups;
   lookupMetadata: LookupMetadata[];
   onClose: () => void;
@@ -84,20 +92,26 @@ const norm = (value: string) => value.trim().toLowerCase();
 
 export function InstallationDialog({
   installationId,
+  cloneFromId = null,
   lookups,
   lookupMetadata,
   onClose,
   onSaved,
 }: Props) {
   const styles = useStyles();
+  const controlRow = useControlRowStyles();
+
+  // Which record the form is filled from — the one being edited, or the one being cloned.
+  const sourceId = installationId ?? cloneFromId;
+  const isClone = installationId === null && cloneFromId !== null;
 
   const [form, setForm] = useState<FormState>(blankForm);
-  const [isLoading, setIsLoading] = useState(installationId !== null);
+  const [isLoading, setIsLoading] = useState(sourceId !== null);
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (installationId === null) {
+    if (sourceId === null) {
       setForm(blankForm);
       setIsLoading(false);
       return;
@@ -106,7 +120,7 @@ export function InstallationDialog({
     setIsLoading(true);
 
     api
-      .getInstallation(installationId)
+      .getInstallation(sourceId)
       .then((detail) => {
         setForm({
           machineId: detail.machineId,
@@ -118,16 +132,19 @@ export function InstallationDialog({
           physicalPathText: detail.physicalPath ?? '',
           tagIds: detail.tags.map((tag) => tag.id),
           repositoryIds: detail.appRepositories.map((repo) => repo.id),
-          isActive: detail.isActive,
-          validFromDate: detail.validFromDate,
-          validToDate: detail.validToDate ?? null,
+          // A clone is a new deployment, so its own validity starts today and has no end — and it
+          // is live, whatever state the record it was copied from is in. Everything else, which
+          // is what makes the copy worth having, comes across as it stands.
+          isActive: isClone ? true : detail.isActive,
+          validFromDate: isClone ? today() : detail.validFromDate,
+          validToDate: isClone ? null : detail.validToDate ?? null,
         });
       })
       .catch((err) =>
         setError(err instanceof Error ? err.message : 'Failed to load the installation.'),
       )
       .finally(() => setIsLoading(false));
-  }, [installationId]);
+  }, [sourceId, isClone]);
 
   function patch(next: Partial<FormState>) {
     setForm((current) => ({ ...current, ...next }));
@@ -341,7 +358,11 @@ export function InstallationDialog({
       <DialogSurface>
         <DialogBody>
           <DialogTitle>
-            {installationId === null ? 'New installation' : 'Edit installation'}
+            {installationId !== null
+              ? 'Edit installation'
+              : isClone
+                ? 'New installation (copy)'
+                : 'New installation'}
           </DialogTitle>
 
           <DialogContent>
@@ -355,14 +376,14 @@ export function InstallationDialog({
                   </MessageBar>
                 )}
 
-                <div className={styles.row}>
+                <div className={controlRow.row}>
                   {lookupDropdown('Machine', itemsOf(lookups, 'machines'), form.machineId, (id) =>
                     patch({ machineId: id ?? 0 }), { required: true })}
                   {lookupDropdown('Application', itemsOf(lookups, 'appnames'), form.appNameId, (id) =>
                     patch({ appNameId: id ?? 0 }), { required: true })}
                 </div>
 
-                <div className={styles.row}>
+                <div className={controlRow.row}>
                   {lookupDropdown('Stage', itemsOf(lookups, 'appstagenames'), form.appStageNameId, (id) =>
                     patch({ appStageNameId: id ?? 0 }), { required: true })}
                   {lookupDropdown(
@@ -374,7 +395,7 @@ export function InstallationDialog({
                   )}
                 </div>
 
-                <div className={styles.row}>
+                <div className={controlRow.row}>
                   {lookupDropdown('DNS endpoint', itemsOf(lookups, 'dnsendpoints'), form.dnsEndpointId, (id) =>
                     patch({ dnsEndpointId: id }), { allowEmpty: true })}
 
@@ -388,7 +409,7 @@ export function InstallationDialog({
                   )}
                 </div>
 
-                <div className={styles.row}>
+                <div className={controlRow.row}>
                   {pathCombobox(
                     'Physical path',
                     'physicalpaths',
@@ -410,7 +431,7 @@ export function InstallationDialog({
                   'No repositories',
                 )}
 
-                <div className={styles.row}>
+                <div className={controlRow.row}>
                   <Field label="Valid from" required className={styles.half}>
                     <Input
                       type="date"
