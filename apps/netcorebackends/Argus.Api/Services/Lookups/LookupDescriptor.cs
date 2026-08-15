@@ -88,6 +88,12 @@ public sealed class LookupDescriptor<TEntity> : ILookupDescriptor
     /// </summary>
     public required UsageProbe Usage { get; init; }
 
+    /// <summary>
+    /// How a submitted name is cleaned up before it is stored. Trimming is all most kinds need;
+    /// DNS endpoints reduce a pasted URL to its host — see <see cref="DnsName"/>.
+    /// </summary>
+    public Func<string, string> NormalizeName { get; init; } = name => name.Trim();
+
     public bool IsReadOnly { get; init; }
 
     public Type EntityType => typeof(TEntity);

@@ -53,7 +53,8 @@ internal sealed class LookupHandler<TEntity> : ILookupHandler
     {
         EnsureWritable();
 
-        var name = dto.Name.Trim();
+        var name = descriptor.NormalizeName(dto.Name);
+        EnsureNameIsNotEmpty(name);
         EnsureNameFits(name);
         await EnsureNameIsFreeAsync(name, excludeId: null);
 
@@ -72,7 +73,8 @@ internal sealed class LookupHandler<TEntity> : ILookupHandler
     {
         EnsureWritable();
 
-        var name = dto.Name.Trim();
+        var name = descriptor.NormalizeName(dto.Name);
+        EnsureNameIsNotEmpty(name);
         EnsureNameFits(name);
         await EnsureNameIsFreeAsync(name, excludeId: id);
 
@@ -117,6 +119,18 @@ internal sealed class LookupHandler<TEntity> : ILookupHandler
         {
             throw new NotSupportedException(
                 $"{descriptor.Kind} cannot be written through the lookup API.");
+        }
+    }
+
+    /// <summary>
+    /// Normalizing can empty a name the caller did fill in — "https://" reduces to nothing — so
+    /// the check belongs here rather than only on the DTO.
+    /// </summary>
+    private void EnsureNameIsNotEmpty(string name)
+    {
+        if (name.Length == 0)
+        {
+            throw new ArgumentException($"A {descriptor.Singular} name is required.");
         }
     }
 

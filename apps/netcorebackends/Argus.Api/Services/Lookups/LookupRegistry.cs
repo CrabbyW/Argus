@@ -85,6 +85,8 @@ public static class LookupRegistry
                     e.Description = dto.Description;
                     e.IsLoadBalancer = dto.IsLoadBalancer;
                 },
+                // The one kind whose names have a format: a host name, never a URL.
+                NormalizeName = DnsName.Normalize,
                 Usage = Usage.FromInstallations(id => i => i.DnsEndpointId == id)
             },
 

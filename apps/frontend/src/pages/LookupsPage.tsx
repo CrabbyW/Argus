@@ -21,6 +21,7 @@ import {
   Title3,
   Tooltip,
   makeStyles,
+  mergeClasses,
   tokens,
 } from '@fluentui/react-components';
 import { AddRegular, DeleteRegular, DismissRegular, EditRegular, SaveRegular } from '@fluentui/react-icons';
@@ -29,24 +30,30 @@ import type { LookupItem, LookupKind } from '../api/types';
 import { useAppToast } from '../hooks/useAppToast';
 import { useLookupMetadata } from '../hooks/useLookupMetadata';
 import { ConfirmDialog } from '../components/ConfirmDialog';
-import { useSheetStyles } from '../styles/sheetStyles';
+import { ID_COLUMN_WIDTH, useSheetStyles } from '../styles/sheetStyles';
+import { useControlRowStyles } from '../styles/controlRowStyles';
+import { toDnsName } from '../utils/dnsName';
 
 const useStyles = makeStyles({
   root: { display: 'flex', flexDirection: 'column', rowGap: '20px' },
   pageHeader: { display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' },
   spacer: { flexGrow: 1 },
   muted: { color: tokens.colorNeutralForeground3 },
+  /** Layout comes from `useControlRowStyles`; this only draws the card around it. */
   editorCard: {
     backgroundColor: tokens.colorNeutralBackground1,
     border: `1px solid ${tokens.colorNeutralStroke2}`,
     borderRadius: tokens.borderRadiusMedium,
     padding: '16px',
-    display: 'flex',
-    gap: '12px',
-    flexWrap: 'wrap',
-    alignItems: 'end',
   },
-  grow: { flex: '1 1 220px' },
+  /**
+   * 160px is the width below which a name field stops being usable, not the width it wants — so
+   * it is the basis, and the free space is shared out above it. At 220px the row broke onto a
+   * second line on window widths that had room for it.
+   */
+  grow: { flex: '1 1 160px', minWidth: '160px' },
+  /** A sort order is two digits. Fluent's Input is 250px by default, which wrapped the row. */
+  narrow: { flex: '0 0 110px' },
   tabStrip: { overflowX: 'auto', flexShrink: 0 },
   actions: { display: 'flex', gap: '4px' },
   tableWrapper: { overflowX: 'auto' },
@@ -78,6 +85,7 @@ const blankEditor: EditorState = {
 export function LookupsPage() {
   const styles = useStyles();
   const sheet = useSheetStyles();
+  const controlRow = useControlRowStyles();
   const navigate = useNavigate();
   const toast = useAppToast();
   const { kind: routeKind } = useParams();
@@ -104,6 +112,13 @@ export function LookupsPage() {
   const [isSaving, setIsSaving] = useState(false);
   const [pendingDelete, setPendingDelete] = useState<LookupItem | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
+
+  /**
+   * The one tab whose names have a format. A DNS endpoint is a host name, and the value is
+   * usually pasted from an address bar, so a URL typed in here is rewritten to its host rather
+   * than kept as a second row for a machine the lookup already has.
+   */
+  const isDnsEndpoint = activeKind === 'dnsendpoints';
 
   // Id + Name + Actions, plus whichever optional columns this tab shows.
   const columnCount =
@@ -147,7 +162,9 @@ export function LookupsPage() {
     setError(null);
 
     const payload = {
-      name: editor.name.trim(),
+      // Belt and braces: the field normalizes as it is left, but a value typed and saved with
+      // Enter never blurs, and it is the stored name that has to be in DNS form.
+      name: isDnsEndpoint ? toDnsName(editor.name) : editor.name.trim(),
       description: editor.description.trim() ? editor.description.trim() : null,
       sortOrder: editor.sortOrder,
       isLoadBalancer: editor.isLoadBalancer,
@@ -248,19 +265,28 @@ export function LookupsPage() {
       )}
 
       {editor && (
-        <div className={styles.editorCard}>
+        <div className={mergeClasses(controlRow.row, styles.editorCard)}>
           {/* maxLength mirrors the column width the server validates against, so an over-long
               name is stopped here rather than coming back as a 400. */}
           <Field
             label="Name"
             required
             className={styles.grow}
-            hint={`Up to ${tab?.maxNameLength} characters.`}
+            hint={
+              isDnsEndpoint
+                ? 'Host name only — a pasted URL is reduced to its host.'
+                : `Up to ${tab?.maxNameLength} characters.`
+            }
           >
             <Input
               value={editor.name}
               maxLength={tab?.maxNameLength}
               onChange={(_, data) => setEditor({ ...editor, name: data.value })}
+              // Normalized as the field is left, not as it is typed: rewriting mid-keystroke
+              // fights whoever is typing `https://` a character at a time.
+              onBlur={() =>
+                isDnsEndpoint && setEditor({ ...editor, name: toDnsName(editor.name) })
+              }
               autoFocus
             />
           </Field>
@@ -275,7 +301,7 @@ export function LookupsPage() {
           )}
 
           {tab?.hasSortOrder && (
-            <Field label="Sort order" hint="Controls the order stages appear in.">
+            <Field label="Sort order" hint="Order stages appear in." className={styles.narrow}>
               <Input
                 type="number"
                 value={String(editor.sortOrder)}
@@ -286,23 +312,26 @@ export function LookupsPage() {
 
           {tab?.hasLoadBalancer && (
             <Switch
+              className={controlRow.labelledRow}
               checked={editor.isLoadBalancer}
               onChange={(_, data) => setEditor({ ...editor, isLoadBalancer: data.checked })}
               label="Load balancer"
             />
           )}
 
-          <Button
-            appearance="primary"
-            icon={<SaveRegular />}
-            onClick={() => void handleSave()}
-            disabled={isSaving || !editor.name.trim()}
-          >
-            Save
-          </Button>
-          <Button icon={<DismissRegular />} onClick={() => setEditor(null)} disabled={isSaving}>
-            Cancel
-          </Button>
+          <div className={controlRow.buttonRow}>
+            <Button
+              appearance="primary"
+              icon={<SaveRegular />}
+              onClick={() => void handleSave()}
+              disabled={isSaving || !editor.name.trim()}
+            >
+              Save
+            </Button>
+            <Button icon={<DismissRegular />} onClick={() => setEditor(null)} disabled={isSaving}>
+              Cancel
+            </Button>
+          </div>
         </div>
       )}
 
@@ -317,7 +346,7 @@ export function LookupsPage() {
               as a number needs; Name and Description take what is left, as on the source sheet.
             */}
             <colgroup>
-              <col style={{ width: '70px' }} />
+              <col style={{ width: ID_COLUMN_WIDTH }} />
               <col style={{ width: '260px' }} />
               {tab?.hasDescription && <col />}
               {tab?.hasSortOrder && <col style={{ width: '110px' }} />}
