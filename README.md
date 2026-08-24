@@ -80,6 +80,10 @@ pnpm run dev:api          # http://localhost:5080, Swagger at /swagger
 pnpm run dev:frontend     # http://localhost:4200
 ```
 
+<div align="center">
+  <img src="docs/images/login.png" alt="Argus sign-in screen" width="70%">
+</div>
+
 Sign in as **`msfadmin`** (the username `DbSeeder` creates) with whatever you put in
 `Seed:AdminPassword`. Two things about that password:
 
