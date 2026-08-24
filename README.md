@@ -11,8 +11,9 @@
 ![React 19](https://img.shields.io/badge/React-19-61DAFB?logo=react&logoColor=black)
 ![TypeScript](https://img.shields.io/badge/TypeScript-3178C6?logo=typescript&logoColor=white)
 
-</div>
+<img src="docs/images/installations.png" alt="Argus — the installations grid: search, filters and 200 seeded installations" width="100%">
 
+</div>
 
 Installation inventory — **where is what installed**. Which application, at which stage, on
 which machine, behind which DNS name, in which folder.
