@@ -1,4 +1,18 @@
-# Argus
+<div align="center">
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="brand/argus-logo-dark.svg">
+  <img src="brand/argus-logo.svg" alt="Argus" width="320">
+</picture>
+
+[![CI](https://github.com/CrabbyW/Argus/actions/workflows/ci.yml/badge.svg)](https://github.com/CrabbyW/Argus/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+![.NET 10](https://img.shields.io/badge/.NET-10-512BD4?logo=dotnet&logoColor=white)
+![React 19](https://img.shields.io/badge/React-19-61DAFB?logo=react&logoColor=black)
+![TypeScript](https://img.shields.io/badge/TypeScript-3178C6?logo=typescript&logoColor=white)
+
+</div>
+
 
 Installation inventory — **where is what installed**. Which application, at which stage, on
 which machine, behind which DNS name, in which folder.
@@ -301,3 +315,9 @@ This README is the entry point; everything else is history or reference.
 | GET/POST/PUT/DELETE | `/api/installations/{id}` | delete is soft |
 | GET/POST/PUT/DELETE | `/api/lookups/{kind}/{id}` | kind = machines · applications · appstages · processorarchitectures · dnsendpoints |
 | GET | `/api/health` | anonymous |
+
+---
+
+## License
+
+MIT — see [LICENSE](LICENSE).
