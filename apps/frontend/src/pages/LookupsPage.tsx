@@ -361,7 +361,7 @@ export function LookupsPage() {
             <colgroup>
               <col style={{ width: ID_COLUMN_WIDTH }} />
               {/* A lookup name is a DNS endpoint or a physical path as often as it is a word —
-                  `vipsprava.1220.cz`, `c:\inetpub\callcenter.rc0`. 380px holds the longest of the
+                  `extranet.demo.example`, `c:\inetpub\helpdesk.rc0`. 380px holds the longest of the
                   seeded values on one line; 260 broke them in two.
 
                   One column on the sheet is left unsized so the Id keeps its 70px (see

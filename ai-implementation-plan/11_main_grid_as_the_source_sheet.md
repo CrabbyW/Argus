@@ -16,8 +16,8 @@ makes the main screen show what the source workbook shows.
 > Proto: každý sdílený údaj je vlastní číselník s Id, a instalace na něj jen odkazuje.
 >
 >     Machines [Id, MachineName]
->     27 ... GAIIS1
->     28 ... GAIIS2
+>     27 ... BOREAS01
+>     28 ... BOREAS02
 >
 >     ApplicationInstalation [Id, MachineId, AppNameId, AppStageNameId, ...]
 >     1 / 27 / 5 / 2 / ...
@@ -34,12 +34,12 @@ is the only part of Argus the user actually sees. Three sessions of UI work went
 
 Screenshot of the running app at 1600×1000, authenticated (`scratchpad/grid-before.png`):
 
-- **No foreign key is displayed anywhere in the grid.** Machine reads `GAIIS1`, not `2`.
+- **No foreign key is displayed anywhere in the grid.** Machine reads `BOREAS01`, not `2`.
 - **`InstallationListItemDto` carries no foreign keys at all** — only `Id` and resolved name
   strings. The frontend cannot show the numbers because it is never sent them. This is a backend
   change, not just a column change.
-- **Four columns truncate at the default width**: `ProAssist CallCent…`, `Data Exchange W…`,
-  `https://vipsprava.1…`, and Application generally. Names are wide; Ids are not.
+- **Four columns truncate at the default width**: `Helpdesk CallCent…`, `Data Exchange W…`,
+  `https://extranet.demo…`, and Application generally. Names are wide; Ids are not.
 - **The app follows the OS theme and this machine is dark**, so `colorNeutralStroke2` gridlines
   sit at very low contrast against `colorNeutralBackground1`. The sheet ruling added earlier is
   nearly invisible — it reads as a dark list, not as a workbook.
@@ -74,7 +74,7 @@ Default view, column for column as the source sheet:
 
 **Names view.** A `Ids ⇄ Names` toggle in the page header swaps the reference columns for the
 resolved names. Rationale, stated plainly because it is an addition to the brief: the roadplan's
-own success criteria are questions in words — *which machines serve paha.ga.local?* — and an
+own success criteria are questions in words — *which machines serve helpdesk.demo.example?* — and an
 answer of `2` is not an answer. The Id view is the default because that is what the sheet shows;
 the name view exists so the screen can still answer the questions the project is justified by.
 The toggle lives in the URL (`?view=names`) like every other piece of grid state.

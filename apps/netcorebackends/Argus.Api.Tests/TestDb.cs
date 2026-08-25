@@ -36,7 +36,7 @@ internal sealed class TestDb : IDisposable
     /// <summary>Ids are fixed so tests can refer to them without extra queries.</summary>
     public const int Gaiis1 = 1;
     public const int Gaiis2 = 2;
-    public const int CallCenter = 1;
+    public const int Helpdesk = 1;
     public const int Extranet = 2;
     public const int StageMain = 1;
     public const int StageRc0 = 2;
@@ -55,12 +55,12 @@ internal sealed class TestDb : IDisposable
         using var db = testDb.NewContext();
 
         db.Machines.AddRange(
-            new Machine { Id = Gaiis1, Name = "GAIIS1" },
-            new Machine { Id = Gaiis2, Name = "GAIIS2" });
+            new Machine { Id = Gaiis1, Name = "BOREAS01" },
+            new Machine { Id = Gaiis2, Name = "BOREAS02" });
 
         db.AppNames.AddRange(
-            new AppName { Id = CallCenter, Name = "ProAssist CallCenter" },
-            new AppName { Id = Extranet, Name = "Proassist Extranet" });
+            new AppName { Id = Helpdesk, Name = "Helpdesk Portal" },
+            new AppName { Id = Extranet, Name = "Partner Extranet" });
 
         db.AppStageNames.AddRange(
             new AppStageName { Id = StageMain, Name = "MAIN", SortOrder = 1 },
@@ -70,11 +70,11 @@ internal sealed class TestDb : IDisposable
             new ProcessorArchitecture { Id = X64, Name = "x64" });
 
         db.DnsEndpoints.Add(
-            new DnsEndpoint { Id = PahaEndpoint, Name = "https://paha.ga.local", IsLoadBalancer = true });
+            new DnsEndpoint { Id = PahaEndpoint, Name = "https://helpdesk.demo.example", IsLoadBalancer = true });
 
         db.RootPaths.Add(new RootPath { Id = RootSlash, Name = "/" });
 
-        db.PhysicalPaths.Add(new PhysicalPath { Id = DiskDefault, Name = @"c:\inetpub\callcenter" });
+        db.PhysicalPaths.Add(new PhysicalPath { Id = DiskDefault, Name = @"c:\inetpub\helpdesk" });
 
         db.Tags.Add(new Tag { Id = TagWeb, Name = "web" });
 

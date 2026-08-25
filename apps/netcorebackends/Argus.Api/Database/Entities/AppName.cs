@@ -1,7 +1,7 @@
 namespace Argus.Api.Database.Entities;
 
 /// <summary>
-/// Lookup: an application that can be installed (e.g. ProAssist CallCenter).
+/// Lookup: an application that can be installed (e.g. Helpdesk Portal).
 ///
 /// The property is <c>Name</c> rather than <c>AppName</c> because C# forbids a member with the
 /// same name as its enclosing type; the database column is still <c>AppName</c>.

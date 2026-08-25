@@ -1,7 +1,7 @@
 namespace Argus.Api.Database.Entities;
 
 /// <summary>
-/// Lookup: a physical or virtual server that hosts installations (e.g. GAIIS1).
+/// Lookup: a physical or virtual server that hosts installations (e.g. BOREAS01).
 /// </summary>
 public class Machine : ILookupEntity
 {

@@ -196,8 +196,8 @@ later error ambiguous.
       | InstallationRepositories | **7** |
       | ApplicationUsers | 1 |
 
-      _`InstallationRepositories` = 7, not the 8 claimed in `plan.txt`: two CallCenter
-      repositories × 3 CallCenter installations, plus one Bitbucket repository × 1 Extranet
+      _`InstallationRepositories` = 7, not the 8 claimed in `plan.txt`: two Helpdesk
+      repositories × 3 Helpdesk installations, plus one Bitbucket repository × 1 Extranet
       installation. Recount from `DbSeeder.SeedRepositoriesAsync` if this ever disagrees._
 - [x] `pnpm run test` — 37 tests green. _(Actually **60** at this point: the suite had grown past
       what §0.3 recorded. 68 after §3.)_
@@ -210,8 +210,8 @@ later error ambiguous.
         unparseable value fails model binding before reaching the handler. Rejected either way, so
         §4.1 was necessary; the expectation in this line was simply wrong about which code.
   - [x] `GET /api/lookups/rootpaths`, `physicalpaths`, `tags`, `apprepositories` → 200
-  - [x] `GET /api/installations?dnsEndpointId=<paha>` → the load-balancer case: SERVER1 **and**
-        GAIIS1. This is the headline question from the roadplan.
+  - [x] `GET /api/installations?dnsEndpointId=<helpdesk>` → the load-balancer case: ATLAS01 **and**
+        BOREAS01. This is the headline question from the roadplan.
   - [x] `GET /api/installations?tagId=<web>` → `totalCount` is the number of *installations*,
         not the number of tag links (§3, first test).
 
@@ -391,9 +391,9 @@ Run in this order, on a database freshly rebuilt per §2.
 
 - [x] Log in as `msfadmin`; a wrong password shows an error, not a blank page
 - [x] Grid loads 5 rows with tag badges
-- [x] *"Which machines serve paha.ga.local?"* — filter by that DNS endpoint → SERVER1 and GAIIS1
-- [x] *"Where does RC0 of CallCenter run?"* — filter app + stage
-- [x] *"What else is on GAIIS1?"* — filter by machine
+- [x] *"Which machines serve helpdesk.demo.example?"* — filter by that DNS endpoint → ATLAS01 and BOREAS01
+- [x] *"Where does RC0 of Helpdesk run?"* — filter app + stage
+- [x] *"What else is on BOREAS01?"* — filter by machine
 - [x] Search a tag name; **record count is not inflated** (the §3 regression, seen through the UI)
 - [x] Filter by root path, by physical path, by repository — each changes the result
 - [x] Date range filter answers "what was installed during this window?"; toggling
@@ -445,7 +445,7 @@ production data.
 4. **Migrations are untested by xUnit** (`EnsureCreated()` on SQLite). Only §2 exercises the real
    schema.
 5. **`PhysicalPaths` as a shared lookup is semantically imperfect.** Two installations on
-   *different machines* legitimately share `c:\inetpub\callcenter.rc0`; after normalization that
+   *different machines* legitimately share `c:\inetpub\helpdesk.rc0`; after normalization that
    is one row, so renaming it on the Lookups screen rewrites the path on both machines even
    though they are different disks. The table also grows roughly 1:1 with installations. The
    roadplan lists `PhysicalPaths` as its own lookup, so this is **accepted, not designed away**;
@@ -499,7 +499,7 @@ command the plan defers to a Windows machine was executed.
 | Swagger `InstallationUpsertDto` | Ids only — `rootPathId`, `physicalPathId`, `tagIds`, `repositoryIds`, no name fields |
 
 Every §6 behaviour was exercised against the running API and passed: the load-balancer query
-(`paha.ga.local` → SERVER1 **and** GAIIS1), each facet narrowing independently, find-or-create of a
+(`helpdesk.demo.example` → ATLAS01 **and** BOREAS01), each facet narrowing independently, find-or-create of a
 new root path including the duplicate-name race, tag add/remove and duplicate collapse, soft delete
 then reinstall on the freed slot, machine rename propagating to every installation, `IsLoadBalancer`
 and `SortOrder` surviving a rename, in-use lookups blocked from deletion, and `AppRepositories`
@@ -516,7 +516,7 @@ filtered view sent to a colleague, which §4.4 explicitly calls for — landed o
 with the facets reset and no error anywhere. Nothing else could have caught it: the page's own
 `readFilter`/`writeFilter` were correct, `tsc` and eslint were clean, and the UI→URL direction
 worked, so only loading a URL from cold revealed it. Fixed by carrying `location.search` across both
-redirects; re-tested with `?machine=2`, `?q=callcenter`, `?tag=1` and `?disabled=true`, each of which
+redirects; re-tested with `?machine=2`, `?q=helpdesk`, `?tag=1` and `?disabled=true`, each of which
 now restores the controls and issues the matching API query.
 
 This is worth recording as the general shape of the risk: §8 #6 warned that a mistyped facet key

@@ -5,7 +5,7 @@
 **Description:** The core design task of Argus: turn the flat list of installation attributes
 from `roadplan` into a **normalized** relational model where every shared value (machine,
 application, stage, architecture, DNS endpoint) lives in its own lookup table and is
-referenced by `Id`. Renaming `GAIIS1` then touches exactly one row. Built code-first with
+referenced by `Id`. Renaming `BOREAS01` then touches exactly one row. Built code-first with
 EF Core: entities in C#, explicit `IEntityTypeConfiguration<T>` per entity, one migration.
 
 ---
@@ -77,7 +77,7 @@ Result: **14 tables** — 8 plain lookups + `AppRepositories` + `RepositoryTypes
   done. Note the consequence recorded in `10_schema_normalization.md`: tag search and filtering
   must use `.Any()`, never a join, or `CountAsync` inflates every page count.
 - **`PhysicalPaths` as a shared lookup is imperfect and accepted.** Two installations on
-  *different machines* legitimately share `c:\inetpub\callcenter.rc0`; normalized, that is one
+  *different machines* legitimately share `c:\inetpub\helpdesk.rc0`; normalized, that is one
   row, so renaming it rewrites the path on both machines even though they are different disks.
   The table also grows roughly 1:1 with installations. The roadplan lists it as its own lookup,
   so the trade is taken deliberately; the installation form uses a type-ahead combobox rather

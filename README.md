@@ -38,8 +38,8 @@ applications — not a deployment tool. Argus records reality; it does not chang
 
 **Success looks like:**
 
-- Any deploy or ops question — *which machines serve `paha.ga.local`? where does RC0 of
-  ProAssistNet run? what is still installed on GAIIS2?* — is answered from Argus in seconds.
+- Any deploy or ops question — *which machines serve `helpdesk.demo.example`? where does RC0 of
+  Helpdesk Portal run? what is still installed on BOREAS02?* — is answered from Argus in seconds.
 - Shared facts are stored exactly once. Renaming a machine or re-pointing a DNS endpoint is a
   single-row edit that every affected installation picks up immediately.
 - History survives. Decommissioning is a soft delete plus a `ValidToDate`, so "what was here
@@ -136,7 +136,7 @@ database, so it runs on `ubuntu-latest`.
 ## The data model
 
 The point of Argus is that nothing shared is written twice. Each shared value lives in its own
-lookup table and is referenced by `Id`, so renaming `GAIIS1` is a single-row edit that every
+lookup table and is referenced by `Id`, so renaming `BOREAS01` is a single-row edit that every
 installation picks up at once.
 
 ```

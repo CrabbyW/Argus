@@ -7,7 +7,7 @@ namespace Argus.Api.Database.Entities.Configurations;
 /// The template every lookup configuration follows: the CLR property is <c>Name</c>, the column
 /// keeps the name the business uses, and the unique index is filtered on <c>IsEnabled</c> so it
 /// agrees with the duplicate check in the lookup service (which only sees live rows). Without the
-/// filter, retiring "GAIIS2" and creating it again passes validation and then dies on the index.
+/// filter, retiring "BOREAS02" and creating it again passes validation and then dies on the index.
 /// </summary>
 public class MachineConfiguration : IEntityTypeConfiguration<Machine>
 {

@@ -3,8 +3,8 @@ using System.Text.RegularExpressions;
 namespace Argus.Api.Services.Lookups;
 
 /// <summary>
-/// A DNS endpoint is stored as a host name and nothing else — <c>paha.ga.local</c>, not
-/// <c>https://paha.ga.local/api/</c>. The two name the same endpoint, and accepting both means the
+/// A DNS endpoint is stored as a host name and nothing else — <c>helpdesk.demo.example</c>, not
+/// <c>https://helpdesk.demo.example/api/</c>. The two name the same endpoint, and accepting both means the
 /// same machine appears twice in every dropdown built from the lookup, with only one of the two
 /// matching what a colleague filters by.
 /// </summary>

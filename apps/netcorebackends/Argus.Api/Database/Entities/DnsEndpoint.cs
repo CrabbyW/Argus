@@ -2,7 +2,7 @@ namespace Argus.Api.Database.Entities;
 
 /// <summary>
 /// Lookup: a public DNS name an installation is reachable at
-/// (e.g. https://paha.ga.local). Deliberately its own table because a single DNS name may be
+/// (e.g. https://helpdesk.demo.example). Deliberately its own table because a single DNS name may be
 /// a load balancer fronting several machines — it is shared, not owned by one installation.
 /// </summary>
 public class DnsEndpoint : ILookupEntity

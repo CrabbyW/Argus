@@ -99,13 +99,13 @@ public class LookupServiceTests
             var updated = await new LookupService(db).UpdateAsync(
                 LookupKind.DnsEndpoints,
                 TestDb.PahaEndpoint,
-                ResubmittedAsTheUiWould(read, "https://paha2.ga.local"));
+                ResubmittedAsTheUiWould(read, "https://helpdesk2.demo.example"));
 
             Assert.NotNull(updated);
             // Saved as the host alone: the descriptor normalises a pasted address, so the URL
             // above comes back as the endpoint it names. That rule is the subject of its own
             // tests; here it only has to not cost the flag.
-            Assert.Equal("paha2.ga.local", updated.Name);
+            Assert.Equal("helpdesk2.demo.example", updated.Name);
             Assert.True(updated.IsLoadBalancer);
         }
 
@@ -113,7 +113,7 @@ public class LookupServiceTests
         {
             var endpoint = await assert.DnsEndpoints.SingleAsync(x => x.Id == TestDb.PahaEndpoint);
 
-            Assert.Equal("paha2.ga.local", endpoint.Name);
+            Assert.Equal("helpdesk2.demo.example", endpoint.Name);
             Assert.True(endpoint.IsLoadBalancer);
         }
     }
@@ -324,7 +324,7 @@ public class LookupServiceTests
 
         await using (var db = testDb.NewContext())
         {
-            db.AppRepositories.Add(new AppRepository { Name = "git://git.local/callcenter.git" });
+            db.AppRepositories.Add(new AppRepository { Name = "git://git.example.local/helpdesk.git" });
             await db.SaveChangesAsync();
         }
 
@@ -332,7 +332,7 @@ public class LookupServiceTests
         {
             var repositories = await new LookupService(db).GetAllAsync(LookupKind.AppRepositories);
 
-            Assert.Equal(new[] { "git://git.local/callcenter.git" }, repositories.Select(x => x.Name));
+            Assert.Equal(new[] { "git://git.example.local/helpdesk.git" }, repositories.Select(x => x.Name));
         }
 
         await using (var db = testDb.NewContext())
@@ -375,7 +375,7 @@ public class LookupServiceTests
             var read = (await new LookupService(db).GetByIdAsync(LookupKind.Machines, TestDb.Gaiis1))!;
 
             await new LookupService(db).UpdateAsync(
-                LookupKind.Machines, TestDb.Gaiis1, ResubmittedAsTheUiWould(read, "GAIIS1-RENAMED"));
+                LookupKind.Machines, TestDb.Gaiis1, ResubmittedAsTheUiWould(read, "BOREAS01-RENAMED"));
         }
 
         await using (var db = testDb.NewContext())
@@ -383,7 +383,7 @@ public class LookupServiceTests
             var page = await new InstallationService(db).GetInstallationsAsync(new InstallationFilterDto());
 
             Assert.Equal(2, page.TotalCount);
-            Assert.All(page.Items, x => Assert.Equal("GAIIS1-RENAMED", x.MachineName));
+            Assert.All(page.Items, x => Assert.Equal("BOREAS01-RENAMED", x.MachineName));
         }
     }
 
@@ -448,7 +448,7 @@ public class LookupServiceTests
         await using var db = testDb.NewContext();
 
         await Assert.ThrowsAsync<ArgumentException>(
-            () => new LookupService(db).CreateAsync(LookupKind.Machines, new LookupUpsertDto { Name = "GAIIS2" }));
+            () => new LookupService(db).CreateAsync(LookupKind.Machines, new LookupUpsertDto { Name = "BOREAS02" }));
     }
 
     /// <summary>Deleting an unused lookup hides it from the dropdowns but keeps the history.</summary>
@@ -466,7 +466,7 @@ public class LookupServiceTests
         {
             var machines = await new LookupService(db).GetAllAsync(LookupKind.Machines);
 
-            Assert.DoesNotContain("GAIIS2", machines.Select(x => x.Name));
+            Assert.DoesNotContain("BOREAS02", machines.Select(x => x.Name));
         }
 
         await using (var assert = testDb.NewContext())
@@ -495,16 +495,16 @@ public class LookupServiceTests
         await using (var db = testDb.NewContext())
         {
             var recreated = await new LookupService(db)
-                .CreateAsync(LookupKind.Machines, new LookupUpsertDto { Name = "GAIIS2" });
+                .CreateAsync(LookupKind.Machines, new LookupUpsertDto { Name = "BOREAS02" });
 
             Assert.NotEqual(TestDb.Gaiis2, recreated.Id);
         }
 
-        // The retired row is still there — the history of the old GAIIS2 survives.
+        // The retired row is still there — the history of the old BOREAS02 survives.
         await using (var assert = testDb.NewContext())
         {
             var all = await assert.Machines.IgnoreQueryFilters()
-                .Where(x => x.Name == "GAIIS2")
+                .Where(x => x.Name == "BOREAS02")
                 .ToListAsync();
 
             Assert.Equal(2, all.Count);
@@ -526,7 +526,7 @@ public class LookupServiceTests
     private static InstallationUpsertDto Deployment(int rootPathId) => new()
     {
         MachineId = TestDb.Gaiis1,
-        AppNameId = TestDb.CallCenter,
+        AppNameId = TestDb.Helpdesk,
         AppStageNameId = TestDb.StageMain,
         ProcessorArchitectureId = TestDb.X64,
         DnsEndpointId = TestDb.PahaEndpoint,

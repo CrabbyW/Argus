@@ -80,7 +80,7 @@ vůbec neposílalo. Opraveno:
     se odpoví bez opuštění řádku
   - přepínač Ids <-> Names v hlavičce, stav v URL (?view=names).
     Je to VĚDOMÝ přídavek nad zadání: kritéria úspěchu v roadplanu
-    jsou otázky ve slovech ("které stroje obsluhují paha.ga.local?")
+    jsou otázky ve slovech ("které stroje obsluhují helpdesk.demo.example?")
     a odpověď "2" není odpověď.
   - mřížky viditelné i v tmavém motivu (colorNeutralStroke1)
 
@@ -132,8 +132,8 @@ STAV DEV DATABÁZE PŘED PŘESTAVBOU (kontrolováno, ne odhadnuto):
   jedna seed transakce, nic ručně vyplněného. Export byl opravdu zbytečný,
   záloha se přesto udělala. Pak drop + update + seed.
 
-  [x] Ověřeno proti běžícímu API: dotaz na load balancer (paha.ga.local
-        vrací SERVER1 i GAIIS1 - hlavní otázka ze zadání), každý facet
+  [x] Ověřeno proti běžícímu API: dotaz na load balancer (helpdesk.demo.example
+        vrací ATLAS01 i BOREAS01 - hlavní otázka ze zadání), každý facet
         zvlášť zužuje výsledek, založení nové kořenové cesty přes
         najdi-nebo-vytvoř včetně souběhu na duplicitní název, přidání a
         odebrání tagu, měkké smazání a znovunainstalování na uvolněné
@@ -263,7 +263,7 @@ HOTOVO - kód:
   [x] Backend .NET 10 (apps/netcorebackends/Argus.Api):
         - 8 entit + IEntityTypeConfiguration ke každé
         - ArgusDbContext, migrace "InitialCreate" (vytvoří 8 tabulek)
-        - seed dat (GAIIS1-3, ProAssistNet, VipSprava, 5 instalací, user admin)
+        - seed dat (BOREAS01-3, Helpdesk Portal, VipSprava, 5 instalací, user admin)
         - služby, statické mappery, DTO, filtr s tříděním a stránkováním
         - controllery: Installations, Lookups, Auth, Health
         - JWT přihlášení, PBKDF2 hashování hesel
@@ -322,8 +322,8 @@ HOTOVO - revize a přestavba UI (2026-07-29, plán 9):
   [x] Přestavěný layout: hlavička stránky + popsaná filtrační karta,
         tmavý režim podle nastavení systému
   [x] Doplněny filtry, které API umělo, ale UI nenabízelo: DNS endpoint,
-        architektura, aktivní. Ověřeno: dnsEndpointId=1 (paha.ga.local)
-        vrací GAIIS1 i GAIIS2 - hlavní otázka ze zadání.
+        architektura, aktivní. Ověřeno: dnsEndpointId=1 (helpdesk.demo.example)
+        vrací BOREAS01 i BOREAS02 - hlavní otázka ze zadání.
   [x] PhysicalPath ve výpisu + read-only detail instalace
   [x] AppRepositories: doplněn CELÝ backend (controller, služba, DTO -
         dosud neexistovaly žádné endpointy) i správa ve frontendu
@@ -450,7 +450,7 @@ DATOVÝ MODEL (výsledek analýzy - proč zrovna takhle)
 
   Klíčový důvod pro DnsEndpoints jako vlastní tabulku: jedna DNS adresa
   může být load balancer před více stroji. V seed datech je přesně tenhle
-  případ (paha.ga.local -> GAIIS1 i GAIIS2).
+  případ (helpdesk.demo.example -> BOREAS01 i BOREAS02).
 
   DnsEndpointId je nullable - služba na pozadí veřejnou adresu nemá.
   Mazání je vždy "měkké" (IsEnabled = 0), řádek zůstává.

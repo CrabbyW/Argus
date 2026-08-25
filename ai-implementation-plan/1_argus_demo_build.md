@@ -86,7 +86,7 @@ every phase below gets its own numbered sub-plan per `CLAUDE-planning-standards.
 
 - **Scope (confirmed with user):** deploy-ready DEMO — feature-complete skeleton, empty of
   real data (only seed). Bulk/real data import is a later phase, explicitly out of scope.
-- **Roadplan example values** (GAIIS1, ProAssistNet, Ids 27/28…) are illustrative only.
+- **Roadplan example values** (BOREAS01, Helpdesk Portal, Ids 27/28…) are illustrative only.
 - **Normalization rationale:** Id is a stable pointer; a name lives in one row, so renaming
   is a single-place edit and stays consistent everywhere (single source of truth).
 - **`CLAUDE-dotnet.md` is a template** from another project (TrafficEvent/DATEX II). Its

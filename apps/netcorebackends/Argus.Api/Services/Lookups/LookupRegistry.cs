@@ -28,7 +28,7 @@ public static class LookupRegistry
                 Apply = (e, dto) => { e.Name = dto.Name; e.Description = dto.Description; },
                 NormalizeName = LookupFormats.NormalizeMachine,
                 ValidateName = LookupFormats.ValidateMachine,
-                NameHint = "A host name, stored upper case — e.g. GAIIS1.",
+                NameHint = "A host name, stored upper case — e.g. BOREAS01.",
                 Usage = Usage.FromInstallations(id => i => i.MachineId == id)
             },
 
@@ -92,7 +92,7 @@ public static class LookupRegistry
                 // cannot be read as a host name at all is refused.
                 NormalizeName = DnsName.Normalize,
                 ValidateName = LookupFormats.ValidateDnsName,
-                NameHint = "A host name — e.g. paha.ga.local. A pasted URL is reduced to its host.",
+                NameHint = "A host name — e.g. helpdesk.demo.example. A pasted URL is reduced to its host.",
                 Usage = Usage.FromInstallations(id => i => i.DnsEndpointId == id)
             },
 
@@ -106,7 +106,7 @@ public static class LookupRegistry
                 Apply = (e, dto) => e.Name = dto.Name,
                 NormalizeName = LookupFormats.NormalizeRootPath,
                 ValidateName = LookupFormats.ValidateRootPath,
-                NameHint = "A url path starting with / — e.g. /callcenter.rc0. The site root is /.",
+                NameHint = "A url path starting with / — e.g. /helpdesk.rc0. The site root is /.",
                 Usage = Usage.FromInstallations(id => i => i.RootPathId == id)
             },
 
@@ -120,7 +120,7 @@ public static class LookupRegistry
                 Apply = (e, dto) => e.Name = dto.Name,
                 NormalizeName = LookupFormats.NormalizePhysicalPath,
                 ValidateName = LookupFormats.ValidatePhysicalPath,
-                NameHint = @"An absolute path — e.g. c:\inetpub\callcenter or \\server\share.",
+                NameHint = @"An absolute path — e.g. c:\inetpub\helpdesk or \\server\share.",
                 Usage = Usage.FromInstallations(id => i => i.PhysicalPathId == id)
             },
 

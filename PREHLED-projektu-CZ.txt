@@ -45,11 +45,11 @@ Něco jako evidence / inventář: která aplikace, v jaké verzi (stage),
 na kterém serveru (stroji), na jaké webové adrese, v jaké složce atd.
 
 Příklad jednoho záznamu (jedné instalace):
-  MachineName ............ jméno stroje/serveru (např. GAIIS1)
-  AppName ................ jméno aplikace (např. ProAssistNet)
+  MachineName ............ jméno stroje/serveru (např. BOREAS01)
+  AppName ................ jméno aplikace (např. Helpdesk Portal)
   AppStageName ........... fáze/verze (Staging | RC0 | Main | PenTest | Mirror)
   ProcessorArchitecture .. architektura (x86 / x64 / arm ...)
-  DnsName ................ webová adresa (https://paha.ga.local ...)
+  DnsName ................ webová adresa (https://helpdesk.demo.example ...)
   RootPath ............... cesta v rámci webu (/ , /proassistnet.rc0 ...)
   Tags ................... štítky
   AppRepositories ........ odkud se kód bere (svn:// , git:// , bitbucket://)
@@ -114,14 +114,14 @@ by se to udržovalo.
 
 Řešení = odkazování přes ID (číselné identifikátory):
   Tabulka Machines:      Id | MachineName
-                          27 | GAIIS1
-                          28 | GAIIS2
+                          27 | BOREAS01
+                          28 | BOREAS02
 
   Tabulka instalací:     MachineId | AppNameId | AppStageNameId | ...
                           27        | 5         | 2              | ...
                           28        | 5         | 2              | ...
 
-Místo opakování textu "GAIIS1" se všude odkazuje jen na číslo 27.
+Místo opakování textu "BOREAS01" se všude odkazuje jen na číslo 27.
 Tomu se v databázích říká "normalizace". Je to standardní správný postup.
 (Přesné rozdělení do tabulek se udělá jako první krok analýzy.)
 

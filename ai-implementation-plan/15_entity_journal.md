@@ -4,7 +4,7 @@
 **Status:** `Completed`  
 **Description:** Nová databázová tabulka `EntityJournal`: kdy, kdo, jak a co změnil, na úrovni
 jedné instalace. Doposud nesla instalace jen `CreatedUtc` a `ModifiedUtc`, takže po dvou týdnech
-nikdo neřekl, že se přestěhovala z ALBERTY na GAIIS1 a kdo to udělal. Souborový akční log z plánu
+nikdo neřekl, že se přestěhovala z ALBERTY na BOREAS01 a kdo to udělal. Souborový akční log z plánu
 13 na to neodpovídá — zaznamenává odeslaný požadavek, ne rozdíl proti předchozímu stavu, a maže se
 retencí. Součástí je čtecí endpoint a záložka **History** v detailu instalace.
 
@@ -52,7 +52,7 @@ retencí. Součástí je čtecí endpoint a záložka **History** v detailu inst
 - [x] `dotnet build` a `pnpm build` bez varování, `pnpm lint` bez nálezů
 - [x] `EntityJournalTests` — 12 nových případů, celkem 112 testů prochází
 - [x] Proti běžícímu API: seedovaná instalace má prázdnou historii, jedna editace zapsala tři
-      řádky s jedním `ChangeSetId` (`Machine ALBERTA → GAIIS1`, `Valid to`, `LinkAdded Tag`),
+      řádky s jedním `ChangeSetId` (`Machine FALCON02 → BOREAS01`, `Valid to`, `LinkAdded Tag`),
       založení `Created`, smazání `Deleted`, neznámé Id 404, obrazovka `/logs` beze změny
 
 ---

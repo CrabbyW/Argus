@@ -59,7 +59,7 @@ including AppRepositories CRUD.
 ### D. Gaps against `roadplan`
 
 - [x] Surface `processorArchitectureId`, `dnsEndpointId` and `isActive` as labelled facets.
-      Verified: `?dnsEndpointId=1` (paha.ga.local) returns GAIIS1 + GAIIS2 — the roadplan's
+      Verified: `?dnsEndpointId=1` (helpdesk.demo.example) returns BOREAS01 + BOREAS02 — the roadplan's
       headline question, answered by one dropdown
 - [x] Show `PhysicalPath` in the grid — required adding it to `InstallationListItemDto` and
       `InstallationMapper.ToListItemDto`, which did not carry it
@@ -89,7 +89,7 @@ including AppRepositories CRUD.
 
 1. `pnpm run db:up`, `pnpm run dev:api`, `pnpm run dev:frontend`; sign in as `msfadmin` with the
    password in `Seed:AdminPassword`.
-2. **Load-balancer regression (the bug that motivated this plan):** rename `paha.ga.local`
+2. **Load-balancer regression (the bug that motivated this plan):** rename `helpdesk.demo.example`
    under Lookups → DNS endpoints, save, reopen. `IsLoadBalancer` must still be true. Confirm in
    SQL: `SELECT DnsName, IsLoadBalancer FROM DnsEndpoints`.
 3. **Stage ordering:** edit any stage, save, then open the Stage dropdown — the order defined by

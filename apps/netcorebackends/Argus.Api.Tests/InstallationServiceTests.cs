@@ -11,7 +11,7 @@ public class InstallationServiceTests
         int rootPathId = TestDb.RootSlash,
         int? physicalPathId = TestDb.DiskDefault,
         int machineId = TestDb.Gaiis1,
-        int appNameId = TestDb.CallCenter,
+        int appNameId = TestDb.Helpdesk,
         int stageId = TestDb.StageMain,
         string validFrom = "2026-01-01",
         string? validTo = null) => new()
@@ -89,7 +89,7 @@ public class InstallationServiceTests
         db.ApplicationInstallations.Add(new Argus.Api.Database.Entities.ApplicationInstallation
         {
             MachineId = TestDb.Gaiis1,
-            AppNameId = TestDb.CallCenter,
+            AppNameId = TestDb.Helpdesk,
             AppStageNameId = TestDb.StageMain,
             ProcessorArchitectureId = TestDb.X64,
             RootPathId = TestDb.RootSlash,
@@ -126,7 +126,7 @@ public class InstallationServiceTests
         await using var db = testDb.NewContext();
         var service = new InstallationService(db);
 
-        var mirror = await TestDb.RootPathIdAsync(db, "/callcenter.mirror");
+        var mirror = await TestDb.RootPathIdAsync(db, "/helpdesk.mirror");
 
         await service.CreateInstallationAsync(Deployment());
         await service.CreateInstallationAsync(Deployment(rootPathId: mirror));
@@ -144,13 +144,13 @@ public class InstallationServiceTests
 
         var created = await service.CreateInstallationAsync(Deployment());
 
-        var elsewhere = await TestDb.PhysicalPathIdAsync(db, @"d:\sites\callcenter");
+        var elsewhere = await TestDb.PhysicalPathIdAsync(db, @"d:\sites\helpdesk");
 
         var dto = Deployment(physicalPathId: elsewhere);
         var updated = await service.UpdateInstallationAsync(created.Id, dto);
 
         Assert.NotNull(updated);
-        Assert.Equal(@"d:\sites\callcenter", updated!.PhysicalPath);
+        Assert.Equal(@"d:\sites\helpdesk", updated!.PhysicalPath);
     }
 
     // --- Validation ----------------------------------------------------------------------
@@ -300,7 +300,7 @@ public class InstallationServiceTests
                 new InstallationFilterDto { SortBy = "'; drop table ApplicationInstallations; --" });
 
             Assert.Equal(
-                new[] { "GAIIS1", "GAIIS2" },
+                new[] { "BOREAS01", "BOREAS02" },
                 result.Items.Select(x => x.MachineName).ToArray());
         }
     }
@@ -379,7 +379,7 @@ public class InstallationServiceTests
         await using (var db = testDb.NewContext())
         {
             var created = await new InstallationService(db).CreateInstallationAsync(
-                Deployment(machineId: TestDb.Gaiis1, appNameId: TestDb.CallCenter));
+                Deployment(machineId: TestDb.Gaiis1, appNameId: TestDb.Helpdesk));
             createdId = created.Id;
         }
 

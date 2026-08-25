@@ -21,7 +21,7 @@ public class EntityJournalTests
         DateOnly? validTo = null) => new()
         {
             MachineId = machineId,
-            AppNameId = TestDb.CallCenter,
+            AppNameId = TestDb.Helpdesk,
             AppStageNameId = TestDb.StageMain,
             ProcessorArchitectureId = TestDb.X64,
             DnsEndpointId = TestDb.PahaEndpoint,
@@ -70,7 +70,7 @@ public class EntityJournalTests
     }
 
     /// <summary>
-    /// The core case: a moved installation, recorded by the names that were on screen — "GAIIS1",
+    /// The core case: a moved installation, recorded by the names that were on screen — "BOREAS01",
     /// not "1" — with the raw Ids kept alongside for anyone querying by machine.
     /// </summary>
     [Fact]
@@ -89,8 +89,8 @@ public class EntityJournalTests
         var entry = Assert.Single(await JournalAsync(testDb, id), x => x.Field == "Machine");
 
         Assert.Equal(JournalActions.Updated, entry.Action);
-        Assert.Equal("GAIIS1", entry.OldValue);
-        Assert.Equal("GAIIS2", entry.NewValue);
+        Assert.Equal("BOREAS01", entry.OldValue);
+        Assert.Equal("BOREAS02", entry.NewValue);
         Assert.Equal(TestDb.Gaiis1, entry.OldValueId);
         Assert.Equal(TestDb.Gaiis2, entry.NewValueId);
     }
@@ -179,7 +179,7 @@ public class EntityJournalTests
         {
             await new AppRepositoryService(db).CreateAsync(new AppRepositoryUpsertDto
             {
-                RepositoryUrl = "https://git.example.com/callcenter.git",
+                RepositoryUrl = "https://git.example.com/helpdesk.git",
                 RepositoryTypeId = TestDb.RepoTypeGit,
                 InstallationIds = new List<int> { id }
             });
@@ -189,7 +189,7 @@ public class EntityJournalTests
 
         Assert.Equal(JournalActions.LinkAdded, entry.Action);
         Assert.Equal(nameof(InstallationRepository), entry.EntityName);
-        Assert.Equal("https://git.example.com/callcenter.git", entry.NewValue);
+        Assert.Equal("https://git.example.com/helpdesk.git", entry.NewValue);
         Assert.Equal("repo-editor", entry.ChangedBy);
     }
 
@@ -230,13 +230,13 @@ public class EntityJournalTests
         await using (var db = testDb.NewContext())
         {
             var machine = await db.Machines.FirstAsync(x => x.Id == TestDb.Gaiis2);
-            machine.Name = "GAIIS-PROD-02";
+            machine.Name = "BOREAS-PROD-02";
             await db.SaveChangesAsync();
         }
 
         var entry = Assert.Single(await JournalAsync(testDb, id), x => x.Field == "Machine");
 
-        Assert.Equal("GAIIS2", entry.NewValue);
+        Assert.Equal("BOREAS02", entry.NewValue);
         Assert.Equal(TestDb.Gaiis2, entry.NewValueId);
     }
 

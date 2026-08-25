@@ -16,7 +16,7 @@ public class AppRepositoryServiceTests
     private static InstallationUpsertDto Deployment(
         int rootPathId,
         int stageId = TestDb.StageMain,
-        int appNameId = TestDb.CallCenter) => new()
+        int appNameId = TestDb.Helpdesk) => new()
         {
             MachineId = TestDb.Gaiis1,
             AppNameId = appNameId,
@@ -51,7 +51,7 @@ public class AppRepositoryServiceTests
 
         await using (var db = testDb.NewContext())
         {
-            var rc0Path = await TestDb.RootPathIdAsync(db, "/callcenter.rc0");
+            var rc0Path = await TestDb.RootPathIdAsync(db, "/helpdesk.rc0");
 
             // Same application, same machine, two stages: siblings under the old model.
             mainId = (await new InstallationService(db).CreateInstallationAsync(
@@ -64,7 +64,7 @@ public class AppRepositoryServiceTests
         await using (var db = testDb.NewContext())
         {
             await new AppRepositoryService(db).CreateAsync(
-                Repo("git://git.local/callcenter.git", rc0Id));
+                Repo("git://git.example.local/helpdesk.git", rc0Id));
         }
 
         await using (var db = testDb.NewContext())
@@ -89,7 +89,7 @@ public class AppRepositoryServiceTests
 
         await using (var db = testDb.NewContext())
         {
-            var rc0Path = await TestDb.RootPathIdAsync(db, "/callcenter.rc0");
+            var rc0Path = await TestDb.RootPathIdAsync(db, "/helpdesk.rc0");
 
             var first = (await new InstallationService(db).CreateInstallationAsync(
                 Deployment(TestDb.RootSlash, TestDb.StageMain))).Id;
@@ -98,7 +98,7 @@ public class AppRepositoryServiceTests
                 Deployment(rc0Path, TestDb.StageRc0))).Id;
 
             await new AppRepositoryService(db).CreateAsync(
-                Repo("git://git.local/callcenter.git", first, second));
+                Repo("git://git.example.local/helpdesk.git", first, second));
         }
 
         await using (var assert = testDb.NewContext())
@@ -116,10 +116,10 @@ public class AppRepositoryServiceTests
         await using var db = testDb.NewContext();
         var service = new AppRepositoryService(db);
 
-        await service.CreateAsync(Repo("git://git.local/callcenter.git"));
+        await service.CreateAsync(Repo("git://git.example.local/helpdesk.git"));
 
         await Assert.ThrowsAsync<ArgumentException>(() =>
-            service.CreateAsync(Repo("git://git.local/callcenter.git")));
+            service.CreateAsync(Repo("git://git.example.local/helpdesk.git")));
     }
 
     /// <summary>
@@ -134,7 +134,7 @@ public class AppRepositoryServiceTests
         await using (var db = testDb.NewContext())
         {
             var created = await new AppRepositoryService(db).CreateAsync(
-                Repo("svn://svn.local/callcenter/trunk"));
+                Repo("svn://svn.example.local/helpdesk/trunk"));
 
             Assert.Empty(created.InstallationIds);
         }
@@ -159,7 +159,7 @@ public class AppRepositoryServiceTests
 
         await using var db = testDb.NewContext();
 
-        var dto = Repo("git://git.local/callcenter.git");
+        var dto = Repo("git://git.example.local/helpdesk.git");
         dto.RepositoryTypeId = 9999;
 
         var error = await Assert.ThrowsAsync<ArgumentException>(
@@ -179,7 +179,7 @@ public class AppRepositoryServiceTests
 
         await using (var db = testDb.NewContext())
         {
-            var dto = Repo("git://git.local/callcenter.git");
+            var dto = Repo("git://git.example.local/helpdesk.git");
             dto.RepositoryTypeId = null;
 
             var created = await new AppRepositoryService(db).CreateAsync(dto);
@@ -209,7 +209,7 @@ public class AppRepositoryServiceTests
         await using (var db = testDb.NewContext())
         {
             var created = await new AppRepositoryService(db).CreateAsync(
-                Repo("git://git.local/callcenter.git"));
+                Repo("git://git.example.local/helpdesk.git"));
 
             Assert.Equal("Git", created.RepositoryTypeName);
             repositoryId = created.Id;
@@ -247,7 +247,7 @@ public class AppRepositoryServiceTests
 
         await using (var db = testDb.NewContext())
         {
-            await new AppRepositoryService(db).CreateAsync(Repo("git://git.local/callcenter.git"));
+            await new AppRepositoryService(db).CreateAsync(Repo("git://git.example.local/helpdesk.git"));
         }
 
         await using (var db = testDb.NewContext())
@@ -290,7 +290,7 @@ public class AppRepositoryServiceTests
         await using var db = testDb.NewContext();
 
         await Assert.ThrowsAsync<ArgumentException>(() =>
-            new AppRepositoryService(db).CreateAsync(Repo("git://git.local/ghost.git", 9999)));
+            new AppRepositoryService(db).CreateAsync(Repo("git://git.example.local/ghost.git", 9999)));
     }
 
     /// <summary>
@@ -306,14 +306,14 @@ public class AppRepositoryServiceTests
         {
             var extranetPath = await TestDb.RootPathIdAsync(db, "/extranet");
 
-            var callCenter = (await new InstallationService(db).CreateInstallationAsync(
+            var helpdesk = (await new InstallationService(db).CreateInstallationAsync(
                 Deployment(TestDb.RootSlash, TestDb.StageMain))).Id;
 
             var extranet = (await new InstallationService(db).CreateInstallationAsync(
                 Deployment(extranetPath, TestDb.StageMain, TestDb.Extranet))).Id;
 
             var service = new AppRepositoryService(db);
-            await service.CreateAsync(Repo("git://git.local/callcenter.git", callCenter));
+            await service.CreateAsync(Repo("git://git.example.local/helpdesk.git", helpdesk));
             await service.CreateAsync(Repo("bitbucket://team/extranet", extranet));
         }
 
@@ -321,7 +321,7 @@ public class AppRepositoryServiceTests
         {
             var service = new AppRepositoryService(db);
 
-            Assert.Single(await service.GetAllAsync(null, TestDb.CallCenter));
+            Assert.Single(await service.GetAllAsync(null, TestDb.Helpdesk));
             Assert.Single(await service.GetAllAsync(null, TestDb.Extranet));
             Assert.Equal(2, (await service.GetAllAsync(null, null)).Count);
         }
@@ -345,13 +345,13 @@ public class AppRepositoryServiceTests
                 Deployment(TestDb.RootSlash))).Id;
 
             repositoryId = (await new AppRepositoryService(db).CreateAsync(
-                Repo("git://git.local/callcenter.git", installationId))).Id;
+                Repo("git://git.example.local/helpdesk.git", installationId))).Id;
         }
 
         await using (var db = testDb.NewContext())
         {
             await new AppRepositoryService(db).UpdateAsync(
-                repositoryId, Repo("git://git.local/callcenter.git"));
+                repositoryId, Repo("git://git.example.local/helpdesk.git"));
         }
 
         await using (var assert = testDb.NewContext())

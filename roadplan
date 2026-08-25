@@ -15,8 +15,8 @@ zřídka. Není to nástroj na deploy. ARGUS zaznamenává realitu, nemění ji.
 
 Jak vypadá úspěch:
 
-  - Jakýkoli deploy/provozní dotaz - které stroje obsluhují paha.ga.local? kde běží RC0
-    ProAssistNetu? co je ještě nainstalované na GAIIS2? - je z ARGUSu zodpovězený v řádu sekund.
+  - Jakýkoli deploy/provozní dotaz - které stroje obsluhují helpdesk.demo.example? kde běží RC0
+    Helpdesk Portalu? co je ještě nainstalované na BOREAS02? - je z ARGUSu zodpovězený v řádu sekund.
   - Sdílené údaje jsou uložené právě jednou. Přejmenování stroje nebo přesměrování DNS endpointu
     je editace jednoho řádku, kterou všechny dotčené instalace převezmou okamžitě.
   - Historie přežije. Vyřazení = měkké smazání + ValidToDate, takže "co tu bylo minulý kvartál?"
@@ -44,15 +44,15 @@ Authentication       db tabulka ApplicationUser, klasický login username + pass
 Atributy jedné instalace nesmí být v jedné tabulce - musí se rozpadnout na N tabulek, protože
 sdílené údaje se opakují (DnsName může ukazovat na load balancer před několika stroji):
 
-    GAIIS1 / RC0 / x64 / https://paha.ga.local / ...
-    GAIIS2 / RC0 / x64 / https://paha.ga.local / ...
-    GAIIS3 / RC0 / x64 / https://vipsprava.1220.cz / ...
+    BOREAS01 / RC0 / x64 / https://helpdesk.demo.example / ...
+    BOREAS02 / RC0 / x64 / https://helpdesk.demo.example / ...
+    BOREAS3 / RC0 / x64 / https://extranet.demo.example / ...
 
 Proto: každý sdílený údaj je vlastní číselník s Id, a instalace na něj jen odkazuje.
 
     Machines [Id, MachineName]
-    27 ... GAIIS1
-    28 ... GAIIS2
+    27 ... BOREAS01
+    28 ... BOREAS02
 
     ApplicationInstalation [Id, MachineId, AppNameId, AppStageNameId, ...]
     1 / 27 / 5 / 2 / ...
@@ -61,15 +61,15 @@ Proto: každý sdílený údaj je vlastní číselník s Id, a instalace na něj
 ## Číselníky (naplňují se PRVNÍ, každý má vlastní CRUD obrazovku)
 
 Machines                [Id, MachineName, Description, IsEnabled]
-                        GAIIS1, GAIIS2, SERVER1, ONTARIO
+                        BOREAS01, BOREAS02, ATLAS01, DRAKE01
 AppNames                [Id, AppName, Description, IsEnabled]
-                        ProAssist CallCenter, Proassist Extranet, Data Exchange WebApi
+                        Helpdesk Portal, Partner Extranet, Data Exchange WebApi
 AppStageNames           [Id, StageName, SortOrder, IsEnabled]
                         STAGING, RC0, MAIN, PenTest, Mirror
 ProcessorArchitectures  [Id, ArchitectureName, IsEnabled]
                         x86, x64, arm, arm64
 DnsEndpoints            [Id, DnsName, IsLoadBalancer, Description, IsEnabled]
-                        https://paha.ga.local, https://vipsprava.1220.cz
+                        https://helpdesk.demo.example, https://extranet.demo.example
 RootPaths               [Id, Path, IsEnabled]
                         /, /proassistnet.rc0, /proassistnet.staging, /proassistmirror
 PhysicalPaths           [Id, Path, IsEnabled]

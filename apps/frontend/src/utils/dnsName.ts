@@ -1,6 +1,6 @@
 /**
- * A DNS endpoint is stored as a host name and nothing else — `paha.ga.local`, not
- * `https://paha.ga.local/api/`. The two are the same endpoint, and letting both into the lookup
+ * A DNS endpoint is stored as a host name and nothing else — `helpdesk.demo.example`, not
+ * `https://helpdesk.demo.example/api/`. The two are the same endpoint, and letting both into the lookup
  * means the same machine appears twice in every dropdown built from it, with only one of the two
  * matching anything a colleague filters by.
  *

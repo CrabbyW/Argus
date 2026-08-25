@@ -50,7 +50,7 @@ return BadRequest(new ErrorResponse { ErrorCode = "VALIDATION_ERROR", Message = 
 
 The **DatexPushReceiver** service uses **HTTP Basic Authentication** for push endpoints:
 - `DatexPushController` — secured with `[Authorize(AuthenticationSchemes = "Basic")]`. Credentials configured via `DatexPushReceiver:BasicAuth:Username` / `Password`. The `/api/datexpush/status` health-check endpoint is `[AllowAnonymous]`.
-- `ProAssistPushController` — remains **unauthenticated by design**. ProAssist systems push assistance data without credentials, protected by rate limiting only.
+- `HelpdeskPushController` — remains **unauthenticated by design**. Helpdesk systems push assistance data without credentials, protected by rate limiting only.
 
 ### Error Handling
 

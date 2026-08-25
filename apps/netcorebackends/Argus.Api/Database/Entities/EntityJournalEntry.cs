@@ -59,7 +59,7 @@ public class EntityJournalEntry
 
     /// <summary>
     /// The value before the change, as text, <b>resolved at the time it was written</b>. A
-    /// foreign key is stored as the name the screen showed that day ("GAIIS1"), not as "3":
+    /// foreign key is stored as the name the screen showed that day ("BOREAS01"), not as "3":
     /// an Id means nothing three weeks later, and resolving it at read time would let a later
     /// rename in the lookup silently rewrite history. Null means the value was empty.
     /// </summary>

@@ -6,8 +6,8 @@ namespace Argus.Api.Services.Lookups;
 /// The formats the lookups with a format are stored in.
 ///
 /// A lookup is the single source of truth for a value that dozens of installations point at, so a
-/// row written the wrong way is not a cosmetic problem: <c>C:\Inetpub\CallCenter</c> and
-/// <c>c:\inetpub\callcenter</c> are one directory and would become two rows, and only one of them
+/// row written the wrong way is not a cosmetic problem: <c>C:\Inetpub\Helpdesk</c> and
+/// <c>c:\inetpub\helpdesk</c> are one directory and would become two rows, and only one of them
 /// answers the question a colleague filters by. Windows paths and DNS names are case-insensitive,
 /// so case is the difference that matters least and duplicates the most.
 /// </summary>
@@ -23,7 +23,7 @@ namespace Argus.Api.Services.Lookups;
 public static partial class LookupFormats
 {
     /// <summary>
-    /// A machine's own name: <c>GAIIS1</c>, or its fully-qualified form. Stored upper case, which
+    /// A machine's own name: <c>BOREAS01</c>, or its fully-qualified form. Stored upper case, which
     /// is how the source workbook and every RDP shortcut in the building writes it.
     /// </summary>
     public static string NormalizeMachine(string value) => value.Trim().ToUpperInvariant();
@@ -31,21 +31,21 @@ public static partial class LookupFormats
     public static string? ValidateMachine(string name) =>
         MachineRegex().IsMatch(name)
             ? null
-            : "A machine name is a host name: letters, digits, hyphens and dots, e.g. GAIIS1.";
+            : "A machine name is a host name: letters, digits, hyphens and dots, e.g. BOREAS01.";
 
     /// <summary>
     /// A DNS endpoint, already reduced to its host by <see cref="DnsName.Normalize"/>. This adds
     /// the check that what is left really is a host name — normalization alone will happily store
-    /// "the paha server" unchanged.
+    /// "the helpdesk server" unchanged.
     /// </summary>
     public static string? ValidateDnsName(string name) =>
         HostRegex().IsMatch(name)
             ? null
-            : "A DNS endpoint is a host name, e.g. paha.ga.local — no spaces, and a label may not "
+            : "A DNS endpoint is a host name, e.g. helpdesk.demo.example — no spaces, and a label may not "
               + "begin or end with a hyphen.";
 
     /// <summary>
-    /// The path a site is served under: <c>/</c>, <c>/callcenter.rc0</c>. A URL path, so it is
+    /// The path a site is served under: <c>/</c>, <c>/helpdesk.rc0</c>. A URL path, so it is
     /// written with forward slashes and no trailing one — <c>/worker/</c> and <c>/worker</c> are
     /// the same application.
     /// </summary>
@@ -76,10 +76,10 @@ public static partial class LookupFormats
     public static string? ValidateRootPath(string name) =>
         RootPathRegex().IsMatch(name)
             ? null
-            : "A root path starts with / and holds no spaces, e.g. /callcenter.rc0.";
+            : "A root path starts with / and holds no spaces, e.g. /helpdesk.rc0.";
 
     /// <summary>
-    /// Where the files sit on disk: <c>c:\inetpub\callcenter.rc0</c>, or a UNC share. Always
+    /// Where the files sit on disk: <c>c:\inetpub\helpdesk.rc0</c>, or a UNC share. Always
     /// absolute — a relative path does not identify a directory on a server someone has to open.
     /// </summary>
     public static string NormalizePhysicalPath(string value)
@@ -110,7 +110,7 @@ public static partial class LookupFormats
     public static string? ValidatePhysicalPath(string name) =>
         PhysicalPathRegex().IsMatch(name)
             ? null
-            : @"A physical path is absolute, e.g. c:\inetpub\callcenter or \\server\share.";
+            : @"A physical path is absolute, e.g. c:\inetpub\helpdesk or \\server\share.";
 
     /// <summary>
     /// A tag is a label to filter by, so it is one lower-case word or hyphenated words:

@@ -34,7 +34,7 @@ only try/catch business validation.
   `Negotiate,JwtBearer` because that template project supports Windows auth; `roadplan`
   specifies username + password for Argus, so Negotiate is deliberately not registered.
   The convention (explicit scheme on every controller) is followed.
-- **DatexPushReceiver / ProAssistPush sections of `CLAUDE-dotnet.md` do not apply** — those
+- **DatexPushReceiver / HelpdeskPush sections of `CLAUDE-dotnet.md` do not apply** — those
   are push endpoints of the template project. Argus has no push receiver. Left unimplemented
   intentionally rather than inventing an Argus equivalent.
 - **One `LookupsController` for five tables.** They are structurally identical (Id + Name);

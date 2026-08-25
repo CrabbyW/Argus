@@ -17,7 +17,7 @@ public class InstallationLinkTests
         List<int>? tagIds = null,
         List<int>? repositoryIds = null,
         int machineId = TestDb.Gaiis1,
-        int appNameId = TestDb.CallCenter,
+        int appNameId = TestDb.Helpdesk,
         int stageId = TestDb.StageMain) => new()
         {
             MachineId = machineId,
@@ -212,7 +212,7 @@ public class InstallationLinkTests
 
         await using (var db = testDb.NewContext())
         {
-            var repoId = await RepositoryIdAsync(db, "git://git.local/callcenter.git");
+            var repoId = await RepositoryIdAsync(db, "git://git.example.local/helpdesk.git");
 
             await new InstallationService(db).CreateInstallationAsync(
                 Deployment(repositoryIds: new List<int> { repoId, repoId }));
@@ -244,8 +244,8 @@ public class InstallationLinkTests
 
         await using (var db = testDb.NewContext())
         {
-            repoId = await RepositoryIdAsync(db, "git://git.local/callcenter.git");
-            var otherPath = await TestDb.RootPathIdAsync(db, "/callcenter.rc0");
+            repoId = await RepositoryIdAsync(db, "git://git.example.local/helpdesk.git");
+            var otherPath = await TestDb.RootPathIdAsync(db, "/helpdesk.rc0");
 
             var first = await new InstallationService(db).CreateInstallationAsync(
                 Deployment(repositoryIds: new List<int> { repoId }));
@@ -292,7 +292,7 @@ public class InstallationLinkTests
         await using (var db = testDb.NewContext())
         {
             prodId = await TagIdAsync(db, "prod");
-            var otherPath = await TestDb.RootPathIdAsync(db, "/callcenter.rc0");
+            var otherPath = await TestDb.RootPathIdAsync(db, "/helpdesk.rc0");
 
             await new InstallationService(db).CreateInstallationAsync(
                 Deployment(tagIds: new List<int> { TestDb.TagWeb }));
@@ -326,7 +326,7 @@ public class InstallationLinkTests
         await using (var db = testDb.NewContext())
         {
             prodId = await TagIdAsync(db, "prod");
-            var otherPath = await TestDb.RootPathIdAsync(db, "/callcenter.rc0");
+            var otherPath = await TestDb.RootPathIdAsync(db, "/helpdesk.rc0");
 
             // One row tagged "web", one tagged "prod", and one carrying both. Each differs in the
             // machine/app/stage/root-path key, which is unique.
@@ -359,8 +359,8 @@ public class InstallationLinkTests
 
         await using (var db = testDb.NewContext())
         {
-            repoId = await RepositoryIdAsync(db, "git://git.local/callcenter.git");
-            var otherPath = await TestDb.RootPathIdAsync(db, "/callcenter.rc0");
+            repoId = await RepositoryIdAsync(db, "git://git.example.local/helpdesk.git");
+            var otherPath = await TestDb.RootPathIdAsync(db, "/helpdesk.rc0");
 
             await new InstallationService(db).CreateInstallationAsync(
                 Deployment(repositoryIds: new List<int> { repoId }));

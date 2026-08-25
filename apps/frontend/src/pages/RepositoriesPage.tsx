@@ -297,7 +297,7 @@ export function RepositoriesPage() {
             <colgroup>
               <col style={{ width: '150px' }} />
               {/* A repository URL is the longest value on this sheet and the one worth reading in
-                  full — https://tfs.ga.local/tfs/DefaultCollection/_git/CallCenter. */}
+                  full — https://tfs.ga.local/tfs/DefaultCollection/_git/Helpdesk. */}
               <col style={{ width: '440px' }} />
               <col style={{ width: '240px' }} />
               <col />

@@ -50,17 +50,17 @@ public static class DbSeeder
         if (!await db.Machines.AnyAsync())
         {
             db.Machines.AddRange(
-                new Machine { Name = "SERVER1", Description = "Web front-end node 1" },
-                new Machine { Name = "GAIIS1", Description = "Web front-end node 2" },
-                new Machine { Name = "SERVER6354654", Description = "Back-office node" },
-                new Machine { Name = "ONTARIO", Description = "Integration/worker node" });
+                new Machine { Name = "ATLAS01", Description = "Web front-end node 1" },
+                new Machine { Name = "BOREAS01", Description = "Web front-end node 2" },
+                new Machine { Name = "CIRRUS02", Description = "Back-office node" },
+                new Machine { Name = "DRAKE01", Description = "Integration/worker node" });
         }
 
         if (!await db.AppNames.AnyAsync())
         {
             db.AppNames.AddRange(
-                new AppName { Name = "ProAssist CallCenter", Description = "Call centre front end" },
-                new AppName { Name = "Proassist Extranet", Description = "Partner extranet" },
+                new AppName { Name = "Helpdesk Portal", Description = "Call centre front end" },
+                new AppName { Name = "Partner Extranet", Description = "Partner extranet" },
                 new AppName { Name = "Data Exchange WebApi", Description = "Integration web API" });
         }
 
@@ -87,13 +87,13 @@ public static class DbSeeder
             db.DnsEndpoints.AddRange(
                 new DnsEndpoint
                 {
-                    Name = "https://paha.ga.local",
+                    Name = "https://helpdesk.demo.example",
                     IsLoadBalancer = true,
-                    Description = "Load balancer in front of SERVER1 + GAIIS1"
+                    Description = "Load balancer in front of ATLAS01 + BOREAS01"
                 },
                 new DnsEndpoint
                 {
-                    Name = "https://vipsprava.1220.cz",
+                    Name = "https://extranet.demo.example",
                     Description = "Direct public endpoint"
                 });
         }
@@ -102,15 +102,15 @@ public static class DbSeeder
         {
             db.RootPaths.AddRange(
                 new RootPath { Name = "/" },
-                new RootPath { Name = "/callcenter.rc0" },
+                new RootPath { Name = "/helpdesk.rc0" },
                 new RootPath { Name = "/worker" });
         }
 
         if (!await db.PhysicalPaths.AnyAsync())
         {
             db.PhysicalPaths.AddRange(
-                new PhysicalPath { Name = @"c:\inetpub\callcenter.rc0" },
-                new PhysicalPath { Name = @"c:\inetpub\callcenter" },
+                new PhysicalPath { Name = @"c:\inetpub\helpdesk.rc0" },
+                new PhysicalPath { Name = @"c:\inetpub\helpdesk" },
                 new PhysicalPath { Name = @"c:\inetpub\extranet" },
                 new PhysicalPath { Name = @"c:\services\dataexchange" });
         }
@@ -146,13 +146,13 @@ public static class DbSeeder
             return;
         }
 
-        var server1 = await db.Machines.SingleAsync(x => x.Name == "SERVER1");
-        var gaiis1 = await db.Machines.SingleAsync(x => x.Name == "GAIIS1");
-        var server6354654 = await db.Machines.SingleAsync(x => x.Name == "SERVER6354654");
-        var ontario = await db.Machines.SingleAsync(x => x.Name == "ONTARIO");
+        var atlas = await db.Machines.SingleAsync(x => x.Name == "ATLAS01");
+        var boreas = await db.Machines.SingleAsync(x => x.Name == "BOREAS01");
+        var cirrus = await db.Machines.SingleAsync(x => x.Name == "CIRRUS02");
+        var drake = await db.Machines.SingleAsync(x => x.Name == "DRAKE01");
 
-        var callCenter = await db.AppNames.SingleAsync(x => x.Name == "ProAssist CallCenter");
-        var extranet = await db.AppNames.SingleAsync(x => x.Name == "Proassist Extranet");
+        var helpdesk = await db.AppNames.SingleAsync(x => x.Name == "Helpdesk Portal");
+        var extranet = await db.AppNames.SingleAsync(x => x.Name == "Partner Extranet");
         var dataExchange = await db.AppNames.SingleAsync(x => x.Name == "Data Exchange WebApi");
 
         var rc0 = await db.AppStageNames.SingleAsync(x => x.Name == "RC0");
@@ -161,15 +161,15 @@ public static class DbSeeder
 
         var x64 = await db.ProcessorArchitectures.SingleAsync(x => x.Name == "x64");
 
-        var paha = await db.DnsEndpoints.SingleAsync(x => x.Name == "https://paha.ga.local");
-        var vip = await db.DnsEndpoints.SingleAsync(x => x.Name == "https://vipsprava.1220.cz");
+        var helpdeskDns = await db.DnsEndpoints.SingleAsync(x => x.Name == "https://helpdesk.demo.example");
+        var extranetDns = await db.DnsEndpoints.SingleAsync(x => x.Name == "https://extranet.demo.example");
 
         var rootSlash = await db.RootPaths.SingleAsync(x => x.Name == "/");
-        var rootRc0 = await db.RootPaths.SingleAsync(x => x.Name == "/callcenter.rc0");
+        var rootRc0 = await db.RootPaths.SingleAsync(x => x.Name == "/helpdesk.rc0");
         var rootWorker = await db.RootPaths.SingleAsync(x => x.Name == "/worker");
 
-        var diskRc0 = await db.PhysicalPaths.SingleAsync(x => x.Name == @"c:\inetpub\callcenter.rc0");
-        var diskCallCenter = await db.PhysicalPaths.SingleAsync(x => x.Name == @"c:\inetpub\callcenter");
+        var diskRc0 = await db.PhysicalPaths.SingleAsync(x => x.Name == @"c:\inetpub\helpdesk.rc0");
+        var diskHelpdesk = await db.PhysicalPaths.SingleAsync(x => x.Name == @"c:\inetpub\helpdesk");
         var diskExtranet = await db.PhysicalPaths.SingleAsync(x => x.Name == @"c:\inetpub\extranet");
         var diskWorker = await db.PhysicalPaths.SingleAsync(x => x.Name == @"c:\services\dataexchange");
 
@@ -188,36 +188,36 @@ public static class DbSeeder
             // its own table rather than a column here.
             new ApplicationInstallation
             {
-                MachineId = server1.Id, AppNameId = callCenter.Id, AppStageNameId = rc0.Id,
-                ProcessorArchitectureId = x64.Id, DnsEndpointId = paha.Id,
+                MachineId = atlas.Id, AppNameId = helpdesk.Id, AppStageNameId = rc0.Id,
+                ProcessorArchitectureId = x64.Id, DnsEndpointId = helpdeskDns.Id,
                 RootPathId = rootRc0.Id, PhysicalPathId = diskRc0.Id,
                 InstallationTags = Tagged(tagWeb, tagRc), ValidFromDate = today
             },
             new ApplicationInstallation
             {
-                MachineId = gaiis1.Id, AppNameId = callCenter.Id, AppStageNameId = rc0.Id,
-                ProcessorArchitectureId = x64.Id, DnsEndpointId = paha.Id,
+                MachineId = boreas.Id, AppNameId = helpdesk.Id, AppStageNameId = rc0.Id,
+                ProcessorArchitectureId = x64.Id, DnsEndpointId = helpdeskDns.Id,
                 RootPathId = rootRc0.Id, PhysicalPathId = diskRc0.Id,
                 InstallationTags = Tagged(tagWeb, tagRc), ValidFromDate = today
             },
             new ApplicationInstallation
             {
-                MachineId = gaiis1.Id, AppNameId = callCenter.Id, AppStageNameId = main.Id,
-                ProcessorArchitectureId = x64.Id, DnsEndpointId = paha.Id,
-                RootPathId = rootSlash.Id, PhysicalPathId = diskCallCenter.Id,
+                MachineId = boreas.Id, AppNameId = helpdesk.Id, AppStageNameId = main.Id,
+                ProcessorArchitectureId = x64.Id, DnsEndpointId = helpdeskDns.Id,
+                RootPathId = rootSlash.Id, PhysicalPathId = diskHelpdesk.Id,
                 InstallationTags = Tagged(tagWeb, tagProd), ValidFromDate = today
             },
             new ApplicationInstallation
             {
-                MachineId = server6354654.Id, AppNameId = extranet.Id, AppStageNameId = main.Id,
-                ProcessorArchitectureId = x64.Id, DnsEndpointId = vip.Id,
+                MachineId = cirrus.Id, AppNameId = extranet.Id, AppStageNameId = main.Id,
+                ProcessorArchitectureId = x64.Id, DnsEndpointId = extranetDns.Id,
                 RootPathId = rootSlash.Id, PhysicalPathId = diskExtranet.Id,
                 InstallationTags = Tagged(tagWeb, tagProd), ValidFromDate = today
             },
             // The no-DNS case: a background API with no public endpoint of its own.
             new ApplicationInstallation
             {
-                MachineId = ontario.Id, AppNameId = dataExchange.Id, AppStageNameId = staging.Id,
+                MachineId = drake.Id, AppNameId = dataExchange.Id, AppStageNameId = staging.Id,
                 ProcessorArchitectureId = x64.Id, DnsEndpointId = null,
                 RootPathId = rootWorker.Id, PhysicalPathId = diskWorker.Id,
                 InstallationTags = Tagged(tagService), IsActive = false, ValidFromDate = today
@@ -415,10 +415,10 @@ public static class DbSeeder
 
         foreach (var (name, description) in new[]
         {
-            ("QUEBEC", "Web front-end node 3"),
-            ("ALBERTA", "Web front-end node 4"),
-            ("MANITOBA", "Back-office node 2"),
-            ("YUKON", "Integration/worker node 2"),
+            ("ECHO01", "Web front-end node 3"),
+            ("FALCON02", "Web front-end node 4"),
+            ("GALLEON01", "Back-office node 2"),
+            ("HALCYON02", "Integration/worker node 2"),
             ("WEB01", "Public web node 1"),
             ("WEB02", "Public web node 2")
         })
@@ -492,11 +492,11 @@ public static class DbSeeder
             return;
         }
 
-        var callCenter = await db.AppNames.SingleAsync(x => x.Name == "ProAssist CallCenter");
-        var extranet = await db.AppNames.SingleAsync(x => x.Name == "Proassist Extranet");
+        var helpdesk = await db.AppNames.SingleAsync(x => x.Name == "Helpdesk Portal");
+        var extranet = await db.AppNames.SingleAsync(x => x.Name == "Partner Extranet");
 
-        var callCenterInstallations = await db.ApplicationInstallations
-            .Where(x => x.AppNameId == callCenter.Id)
+        var helpdeskInstallations = await db.ApplicationInstallations
+            .Where(x => x.AppNameId == helpdesk.Id)
             .Select(x => x.Id)
             .ToListAsync();
 
@@ -517,19 +517,19 @@ public static class DbSeeder
         db.AppRepositories.AddRange(
             new AppRepository
             {
-                Name = "git://git.local/callcenter.git",
+                Name = "git://git.example.local/helpdesk.git",
                 RepositoryTypeId = git.Id,
-                InstallationRepositories = LinkedTo(callCenterInstallations)
+                InstallationRepositories = LinkedTo(helpdeskInstallations)
             },
             new AppRepository
             {
-                Name = "svn://svn.local/callcenter/trunk",
+                Name = "svn://svn.example.local/helpdesk/trunk",
                 RepositoryTypeId = svn.Id,
-                InstallationRepositories = LinkedTo(callCenterInstallations)
+                InstallationRepositories = LinkedTo(helpdeskInstallations)
             },
             new AppRepository
             {
-                Name = "bitbucket://team/extranet",
+                Name = "bitbucket://demo-team/extranet",
                 RepositoryTypeId = bitbucket.Id,
                 InstallationRepositories = LinkedTo(extranetInstallations)
             });

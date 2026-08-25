@@ -57,13 +57,13 @@ import { useControlRowStyles } from '../styles/controlRowStyles';
  *
  * The fact table stores foreign keys — that is the roadplan's normalisation rule and it is right
  * — but a key is not an answer. The success criteria are questions in words ("which machines
- * serve paha.ga.local?"), and `2` does not answer one, so every reference is displayed as the
+ * serve helpdesk.demo.example?"), and `2` does not answer one, so every reference is displayed as the
  * lookup value it points at. The Id itself is not shown either: nobody operating a server asks
- * for installation 14, they ask for RC0 of CallCenter on GAIIS2.
+ * for installation 14, they ask for RC0 of Helpdesk on BOREAS02.
  *
  * Fluent's Table is `table-layout: fixed`, so these widths are the only thing setting column
  * size. Sized against the real seed values — the longest of each (Data Exchange WebApi,
- * https://vipsprava.1220.cz, c:\inetpub\callcenter.rc0) fits without truncating.
+ * https://extranet.demo.example, c:\inetpub\helpdesk.rc0) fits without truncating.
  *
  * The sum is the constraint. It becomes the table's `min-width`, so once it passes the width of
  * the window the grid gains a horizontal scrollbar and the last columns leave the screen — which
@@ -836,7 +836,7 @@ export function InstallationsPage() {
           </Field>
 
           {/* These four carry the roadplan's headline questions — which machines serve
-              paha.ga.local, where RC0 of CallCenter runs, what else is on a given machine — so
+              helpdesk.demo.example, where RC0 of Helpdesk runs, what else is on a given machine — so
               they stay one click away. The rest is a click further. */}
           {facet('Machine', 'All machines', 'machines', filter.machineId, (id) =>
             patchFilter({ machineId: id }), styles.barFacet,
