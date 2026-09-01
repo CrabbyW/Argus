@@ -198,17 +198,33 @@ export interface LoginRequest {
   password: string;
 }
 
+/** How a session was established. Matches the server's `AuthenticationMethod` enum by name. */
+export type AuthenticationMethod = 'Password' | 'Windows';
+
 export interface LoginResponse {
   token: string;
   expiresUtc: string;
   username: string;
   displayName: string;
+  authenticationMethod: AuthenticationMethod;
+  /** The domain account behind a Windows sign-in; null after the password form. */
+  windowsAccountName: string | null;
+}
+
+/**
+ * What the sign-in screen is allowed to offer, from `GET /api/auth/options`. Read before anyone
+ * has signed in, so it says nothing about the server beyond this.
+ */
+export interface AuthOptions {
+  windowsAuthEnabled: boolean;
 }
 
 export interface CurrentUser {
   id: number;
   username: string;
   displayName: string;
+  windowsAccountName: string | null;
+  authenticationMethod: AuthenticationMethod;
 }
 
 /**
@@ -245,13 +261,22 @@ export interface User {
   isEnabled: boolean;
   createdUtc: string;
   lastLoginUtc: string | null;
+  /** The Windows account mapped to this user, or null for password sign-in only. */
+  windowsAccountName: string | null;
+  /** How the last sign-in happened, or null if the account has never been used. */
+  lastLoginMethod: AuthenticationMethod | null;
 }
 
 export interface UserUpsert {
   username: string;
   displayName: string;
-  /** Required when creating. Ignored by the server on update — see `12_user_management.md`. */
+  /**
+   * Required when creating unless `windowsAccountName` is given. Ignored by the server on
+   * update — see `12_user_management.md`.
+   */
   password?: string;
+  /** `DOMAIN\\user`; empty clears the mapping. Accepted on update, unlike the password. */
+  windowsAccountName?: string;
 }
 
 /** One file in the server's log directory, from `POST /api/logs/search`. */

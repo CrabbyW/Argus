@@ -1,5 +1,6 @@
 import type {
   ApiResponse,
+  AuthOptions,
   AppRepository,
   AppRepositoryUpsert,
   CurrentUser,
@@ -143,8 +144,24 @@ function read<T>(
 }
 
 export const api = {
+  getAuthOptions: () => request<AuthOptions>('/auth/options'),
+
   login: (payload: LoginRequest) =>
     request<LoginResponse>('/auth/login', { method: 'POST', body: JSON.stringify(payload) }),
+
+  /**
+   * Signs in with the Windows account the browser holds. There is no payload: the credential is
+   * the Negotiate handshake, which is why this is the one call that must send credentials — a
+   * `fetch` omits them by default, and without them the server never sees the account.
+   */
+  loginWithWindows: () =>
+    request<LoginResponse>('/auth/windows-login', { method: 'POST', credentials: 'include' }),
+
+  /**
+   * Tells the server the session is over. Nothing is revoked — the token is simply dropped by the
+   * client — so this exists for the action log, and a failure must never stop a sign-out.
+   */
+  logout: () => request<void>('/auth/logout', { method: 'POST' }),
 
   getCurrentUser: () => read<CurrentUser>('/auth/me'),
 

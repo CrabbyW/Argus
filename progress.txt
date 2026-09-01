@@ -1,7 +1,7 @@
 =====================================================================
  ARGUS - PROGRESS LOG
 =====================================================================
- Poslední aktualizace: 2026-08-03
+ Poslední aktualizace: 2026-09-01
  Kde jsme skončili a čím zítra navázat.
 
  POZOR: tenhle soubor je HISTORICKÝ deník stavby. Aktuální stav, postup
@@ -26,6 +26,47 @@
 
  Aktuální plán a postup ověření: ai-implementation-plan/12_user_management.md
 =====================================================================
+
+
+---------------------------------------------------------------------
+2026-09-01 - WINDOWS AUTENTIZACE A PŘIHLÁŠENÍ V LOGU
+---------------------------------------------------------------------
+
+Pod přihlašovacím formulářem je druhé tlačítko: "Sign in with Windows".
+Použije doménový účet z prohlížeče (Negotiate) a vrátí úplně stejný JWT
+jako jméno + heslo, takže zbytek API o druhé cestě neví - Negotiate visí
+jediné na /api/auth/windows-login. Účet se páruje sloupcem
+ApplicationUsers.WindowsAccountName (DOMAIN\user, bez ohledu na velikost
+písmen), mapuje se na obrazovce /users. Uživatel přihlašovaný jen přes
+Windows nemá heslo, proto jsou PasswordHash a PasswordSalt nově nullable.
+
+Celé je to VYPNUTÉ (WindowsAuth:Enabled=false). Negotiate potřebuje API
+na doménovém stroji a prohlížeč, který se serverem vyjednává; kde to
+neplatí, requesty jen padají. Přihlašovací obrazovka se serveru ptá
+(GET /api/auth/options) a tlačítko bez toho vůbec nenakreslí.
+AutoProvisionUsers (taky vypnuté) založí uživatele při prvním přihlášení
+- jinak neznámý doménový účet dostane "nejste namapovaný", což je
+schválně konkrétní: kdo prokázal, který doménový účet je, se nemá dozvědět
+vágní hlášku a zkoušet to donekonečna.
+
+Druhá půlka zadání byl LOG. Akční log u přihlášení dosud řekl jen "POST
+/api/auth/login vrátil 200". Teď:
+  - každý řádek má PÁTÝ sloupec [actor] - "jnovak (Windows)" nebo
+    "anonymous"; způsob přihlášení nese claim authMethod v tokenu, takže
+    to platí pro celou session, ne jen pro ten jeden request
+  - přihlášení, odmítnutí i odhlášení mají vlastní řádky (LoginAuditLog):
+    method, username, windowsAccount, ip, userAgent a u odmítnutí důvod
+  - neúspěch jde navíc do diagnostického logu jako WARN; klient dál
+    dostává vágní "Invalid username or password"
+  - /api/auth/logout nic neruší (token zahodí prohlížeč), existuje jen
+    proto, aby po odhlášení zůstala stopa
+
+POZOR na poznámku níže v sekci ODCHYLKY: tvrdila, že Argus Negotiate
+nemá. Od dneška platí jen napůl - viz ai-implementation-plan/16.
+
+Migrace: 20260901090000_AddWindowsAuthentication (dva sloupce,
+filtrovaný unikátní index, hesla nullable).
+Plán a odůvodnění: ai-implementation-plan/16_windows_authentication.md
 
 
 ---------------------------------------------------------------------
@@ -470,9 +511,11 @@ POZNÁMKY / VĚDOMÉ ODCHYLKY
     Searching_by_tag_does_not_multiply_the_row_count.
   - CLAUDE-dotnet.md je ŠABLONA z jiného projektu (TrafficEvent/DATEX).
     Konvence se dodržely, ale tři věci nešlo převzít doslova a jsou
-    zdůvodněné v plánech: Negotiate/Windows autentizace (Argus má
-    jméno+heslo), DatexPush endpointy (Argus žádné nemá), sdílené RSA
-    klíče mezi dvěma backendy (Argus má jeden backend -> HMAC klíč).
+    zdůvodněné v plánech: Negotiate/Windows autentizace, DatexPush
+    endpointy (Argus žádné nemá), sdílené RSA klíče mezi dvěma backendy
+    (Argus má jeden backend -> HMAC klíč). Negotiate od 2026-09-01
+    částečně JE - ale jen na jednom endpointu, který vymění doménový účet
+    za JWT, ne na každém controlleru jako v šabloně (plán 16).
   - Docker se nepoužívá vůbec - ani pro databázi (LocalDB), ani pro appky
     (pnpm dev). Důvod: spotřeba paměti, viz sekce výše. Plán 8 popisuje
     ještě starou compose cestu.

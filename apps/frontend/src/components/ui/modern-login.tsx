@@ -559,6 +559,46 @@ const useStyles = makeStyles({
       cursor: 'not-allowed',
     },
   },
+  // The "or" rule between the password form and the Windows button. Two hairlines and the word
+  // between them, so the second way in reads as an alternative rather than as another field.
+  separator: {
+    width: '100%',
+    marginTop: '18px',
+    display: 'flex',
+    alignItems: 'center',
+    columnGap: '10px',
+    color: '#666',
+    fontSize: '0.75rem',
+    textTransform: 'uppercase',
+    letterSpacing: '0.08em',
+    '::before': { content: '""', flex: 1, height: '1px', backgroundColor: '#2a2a2a' },
+    '::after': { content: '""', flex: 1, height: '1px', backgroundColor: '#2a2a2a' },
+  },
+  // Same geometry as the primary button, outlined instead of filled: it is the other way in, not
+  // the recommended one.
+  secondary: {
+    width: '100%',
+    boxSizing: 'border-box',
+    marginTop: '14px',
+    padding: '0.65rem 0.85rem',
+    borderRadius: '6px',
+    border: '1px solid #333',
+    backgroundColor: 'transparent',
+    color: '#ededed',
+    fontWeight: 500,
+    fontSize: '0.875rem',
+    fontFamily: 'inherit',
+    cursor: 'pointer',
+    ':hover': { border: '1px solid #555', backgroundColor: '#141414' },
+    ':focus-visible': {
+      outline: '2px solid #fff',
+      outlineOffset: '2px',
+    },
+    ':disabled': {
+      color: '#777',
+      cursor: 'not-allowed',
+    },
+  },
   error: {
     width: '100%',
     boxSizing: 'border-box',
@@ -587,6 +627,12 @@ const useStyles = makeStyles({
 export interface ModernLoginProps {
   /** Rejections are the caller's to catch and surface through `error`. */
   onSubmit: (username: string, password: string) => void | Promise<void>;
+  /**
+   * Sign in with the browser's Windows account. Given only when the server offers it, and the
+   * button is not drawn without it — a site with Windows authentication off must not be shown a
+   * button that can only fail.
+   */
+  onWindowsSignIn?: () => void | Promise<void>;
   error?: string | null;
   isSubmitting?: boolean;
   title?: string;
@@ -595,6 +641,7 @@ export interface ModernLoginProps {
 
 export function ModernLogin({
   onSubmit,
+  onWindowsSignIn,
   error = null,
   isSubmitting = false,
   title = 'Sign in to Argus',
@@ -680,6 +727,21 @@ export function ModernLogin({
             {isSubmitting ? 'Signing in...' : 'Sign in'}
           </button>
         </form>
+
+        {onWindowsSignIn && (
+          <>
+            <div className={styles.separator}>or</div>
+
+            <button
+              type="button"
+              className={styles.secondary}
+              onClick={() => void onWindowsSignIn()}
+              disabled={isSubmitting}
+            >
+              Sign in with Windows
+            </button>
+          </>
+        )}
 
         {error && (
           <div className={styles.error} role="alert">

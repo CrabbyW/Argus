@@ -7,6 +7,8 @@ interface AuthContextValue {
   user: CurrentUser | null;
   isLoading: boolean;
   login: (username: string, password: string) => Promise<void>;
+  /** Signs in with the browser's Windows account. Rejects like `login` does. */
+  loginWithWindows: () => Promise<void>;
   logout: () => void;
 }
 
@@ -47,14 +49,28 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(current);
   }, []);
 
+  // The Windows handshake happens inside the request; from here the two ways in differ only in
+  // which call issues the token.
+  const loginWithWindows = useCallback(async () => {
+    const result = await api.loginWithWindows();
+    tokenStorage.set(result.token);
+
+    const current = await api.getCurrentUser();
+    setUser(current);
+  }, []);
+
   const logout = useCallback(() => {
+    // Told to the server first, because the call needs the token that the next line drops. It is
+    // only there to be logged, so a failing one must not keep anybody signed in.
+    void api.logout().catch(() => undefined);
+
     tokenStorage.clear();
     setUser(null);
   }, []);
 
   const value = useMemo(
-    () => ({ user, isLoading, login, logout }),
-    [user, isLoading, login, logout],
+    () => ({ user, isLoading, login, loginWithWindows, logout }),
+    [user, isLoading, login, loginWithWindows, logout],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

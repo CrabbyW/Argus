@@ -48,16 +48,29 @@ public class UserService : IUserService
     {
         var username = (dto.Username ?? string.Empty).Trim();
         EnsureUsernameFree(await FindByUsernameAsync(username), username);
-        EnsurePasswordAcceptable(dto.Password);
 
-        var (hash, salt) = PasswordHasher.HashPassword(dto.Password!);
+        var windowsAccount = NormaliseAccount(dto.WindowsAccountName);
+        await EnsureWindowsAccountFreeAsync(windowsAccount, exceptUserId: null);
+
+        // A password is required unless a Windows account is mapped — a user with neither cannot
+        // sign in at all, and an account nobody can use is a mistake rather than a choice. Given
+        // one, a password is still allowed: an administrator may want both ways in.
+        string? hash = null;
+        string? salt = null;
+
+        if (windowsAccount is null || !string.IsNullOrEmpty(dto.Password))
+        {
+            EnsurePasswordAcceptable(dto.Password);
+            (hash, salt) = PasswordHasher.HashPassword(dto.Password!);
+        }
 
         var user = new ApplicationUser
         {
             Username = username,
             DisplayName = (dto.DisplayName ?? string.Empty).Trim(),
             PasswordHash = hash,
-            PasswordSalt = salt
+            PasswordSalt = salt,
+            WindowsAccountName = windowsAccount
         };
 
         db.ApplicationUsers.Add(user);
@@ -86,8 +99,20 @@ public class UserService : IUserService
             EnsureUsernameFree(clash, username);
         }
 
+        var windowsAccount = NormaliseAccount(dto.WindowsAccountName);
+        await EnsureWindowsAccountFreeAsync(windowsAccount, exceptUserId: id);
+
+        // Clearing the mapping on a user who has no password would lock them out of their own
+        // account, which is not something an edit should be able to do by omission.
+        if (windowsAccount is null && user.PasswordHash is null)
+        {
+            throw new ArgumentException(
+                $"User '{user.Username}' signs in with Windows only. Set a password before removing the Windows account.");
+        }
+
         user.Username = username;
         user.DisplayName = (dto.DisplayName ?? string.Empty).Trim();
+        user.WindowsAccountName = windowsAccount;
 
         // dto.Password is ignored on purpose: passwords are set through SetPasswordAsync only.
         await db.SaveChangesAsync();
@@ -194,6 +219,40 @@ public class UserService : IUserService
         }
     }
 
+    /// <summary>
+    /// Trimmed, and empty becomes null: the unique index treats every NULL as its own value, but
+    /// two empty strings are one duplicate — and "no mapping" is what an emptied field means.
+    /// </summary>
+    private static string? NormaliseAccount(string? account)
+    {
+        var trimmed = (account ?? string.Empty).Trim();
+
+        return trimmed.Length == 0 ? null : trimmed;
+    }
+
+    /// <summary>
+    /// One domain account signs in as one Argus user. Checked here rather than left to the unique
+    /// index, so a second mapping is a message instead of a 500.
+    /// </summary>
+    private async Task EnsureWindowsAccountFreeAsync(string? account, int? exceptUserId)
+    {
+        if (account is null)
+        {
+            return;
+        }
+
+        var clash = await db.ApplicationUsers
+            .IgnoreQueryFilters()
+            .FirstOrDefaultAsync(x => x.WindowsAccountName != null
+                && x.WindowsAccountName.ToLower() == account.ToLower());
+
+        if (clash is not null && clash.Id != exceptUserId)
+        {
+            throw new ArgumentException(
+                $"The Windows account '{account}' is already mapped to user '{clash.Username}'.");
+        }
+    }
+
     private static void EnsurePasswordAcceptable(string? password)
     {
         if (string.IsNullOrWhiteSpace(password) || password.Length < UserPasswordRules.MinimumLength)
@@ -210,7 +269,9 @@ public class UserService : IUserService
         DisplayName = user.DisplayName,
         IsEnabled = user.IsEnabled,
         CreatedUtc = user.CreatedUtc,
-        LastLoginUtc = user.LastLoginUtc
+        LastLoginUtc = user.LastLoginUtc,
+        WindowsAccountName = user.WindowsAccountName,
+        LastLoginMethod = user.LastLoginMethod
     };
 
     private static readonly System.Linq.Expressions.Expression<Func<ApplicationUser, UserDto>> Projection =
@@ -221,6 +282,8 @@ public class UserService : IUserService
             DisplayName = x.DisplayName,
             IsEnabled = x.IsEnabled,
             CreatedUtc = x.CreatedUtc,
-            LastLoginUtc = x.LastLoginUtc
+            LastLoginUtc = x.LastLoginUtc,
+            WindowsAccountName = x.WindowsAccountName,
+            LastLoginMethod = x.LastLoginMethod
         };
 }

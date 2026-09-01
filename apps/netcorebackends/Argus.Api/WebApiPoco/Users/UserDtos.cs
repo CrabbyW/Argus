@@ -20,6 +20,12 @@ public class UserDto
     public DateTime CreatedUtc { get; set; }
 
     public DateTime? LastLoginUtc { get; set; }
+
+    /// <summary>The domain account this user may sign in with, or null for password only.</summary>
+    public string? WindowsAccountName { get; set; }
+
+    /// <summary>How the last sign-in happened: "Password", "Windows", or null if never.</summary>
+    public string? LastLoginMethod { get; set; }
 }
 
 /// <summary>
@@ -47,9 +53,20 @@ public class UserUpsertDto
     [StringLength(256, MinimumLength = 1)]
     public string DisplayName { get; set; } = string.Empty;
 
-    /// <summary>Required on create, ignored on update.</summary>
+    /// <summary>
+    /// Required on create unless <see cref="WindowsAccountName"/> is given; ignored on update.
+    /// </summary>
     [StringLength(256)]
     public string? Password { get; set; }
+
+    /// <summary>
+    /// The Windows account that signs in as this user, as the domain reports it
+    /// (<c>DOMAIN\samaccount</c>). Empty or null clears the mapping, leaving password sign-in.
+    /// Unlike the password this one *is* accepted on update: a mapping is a piece of the user's
+    /// identity that an administrator has to be able to correct.
+    /// </summary>
+    [StringLength(256)]
+    public string? WindowsAccountName { get; set; }
 }
 
 public class SetPasswordDto

@@ -5,8 +5,8 @@ namespace Argus.Api.Configuration;
 ///
 /// Kept separate from the diagnostic log because it answers a different question. The
 /// diagnostic log is read when something is broken; this one is read when someone asks
-/// "who changed this row, and what exactly did they send?" — so it stays parseable
-/// (one action per line, four bracketed fields) and it is not allowed to grow forever.
+/// "who changed this row, how did they sign in, and what exactly did they send?" — so it stays
+/// parseable (one action per line, five bracketed fields) and it is not allowed to grow forever.
 /// </summary>
 public class AuditLogOptions
 {

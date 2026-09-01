@@ -63,7 +63,7 @@ const useStyles = makeStyles({
   },
 });
 
-const blankForm: UserUpsert = { username: '', displayName: '', password: '' };
+const blankForm: UserUpsert = { username: '', displayName: '', password: '', windowsAccountName: '' };
 
 /** Local dates read better than a UTC string; the value itself stays UTC on the wire. */
 const formatUtc = formatDateTime;
@@ -141,6 +141,9 @@ export function UsersPage() {
       const payload: UserUpsert = {
         username: editing.form.username.trim(),
         displayName: editing.form.displayName.trim(),
+        // Sent on update too, unlike the password: a mapping is part of the account, and an
+        // emptied field is how one is removed.
+        windowsAccountName: (editing.form.windowsAccountName ?? '').trim(),
       };
 
       if (editing.id === null) {
@@ -222,7 +225,12 @@ export function UsersPage() {
     editing !== null &&
     editing.form.username.trim().length > 0 &&
     editing.form.displayName.trim().length > 0 &&
-    (editing.id !== null || (editing.form.password ?? '').length >= MINIMUM_PASSWORD_LENGTH);
+    // On create a password is required unless the account signs in with Windows instead — but a
+    // password typed anyway still has to be a real one. On edit there is no password field at all.
+    (editing.id !== null ||
+      (editing.form.password ?? '').length >= MINIMUM_PASSWORD_LENGTH ||
+      ((editing.form.password ?? '').length === 0 &&
+        (editing.form.windowsAccountName ?? '').trim().length > 0));
 
   return (
     <div className={styles.root}>
@@ -279,6 +287,7 @@ export function UsersPage() {
                 <TableHeaderCell className={sheet.headerCell}>Id</TableHeaderCell>
                 <TableHeaderCell className={sheet.headerCell}>Username</TableHeaderCell>
                 <TableHeaderCell className={sheet.headerCell}>Display name</TableHeaderCell>
+                <TableHeaderCell className={sheet.headerCell}>Windows account</TableHeaderCell>
                 <TableHeaderCell className={sheet.headerCell}>Active</TableHeaderCell>
                 <TableHeaderCell className={sheet.headerCell}>Created</TableHeaderCell>
                 <TableHeaderCell className={sheet.headerCell}>Last sign-in</TableHeaderCell>
@@ -289,7 +298,7 @@ export function UsersPage() {
             <TableBody>
               {items.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={7}>
+                  <TableCell colSpan={8}>
                     <span className={styles.muted}>No accounts.</span>
                   </TableCell>
                 </TableRow>
@@ -315,6 +324,12 @@ export function UsersPage() {
                     <TableCell className={sheet.textCell} title={user.displayName}>
                       {user.displayName}
                     </TableCell>
+                    <TableCell
+                      className={sheet.textCell}
+                      title={user.windowsAccountName ?? undefined}
+                    >
+                      {user.windowsAccountName || <span className={styles.muted}>—</span>}
+                    </TableCell>
                     <TableCell>
                       {user.isEnabled ? (
                         <Badge appearance="tint" color="success" size="small">
@@ -328,7 +343,23 @@ export function UsersPage() {
                     </TableCell>
                     <TableCell>{formatUtc(user.createdUtc)}</TableCell>
                     <TableCell>
-                      {formatUtc(user.lastLoginUtc) || <span className={styles.muted}>never</span>}
+                      {user.lastLoginUtc ? (
+                        <>
+                          {formatUtc(user.lastLoginUtc)}
+                          {user.lastLoginMethod && (
+                            <>
+                              {' '}
+                              {/* How they got in last time, which with two ways in is as much
+                                  of the answer as when. */}
+                              <Badge appearance="tint" color="informative" size="small">
+                                {user.lastLoginMethod}
+                              </Badge>
+                            </>
+                          )}
+                        </>
+                      ) : (
+                        <span className={styles.muted}>never</span>
+                      )}
                     </TableCell>
                     <TableCell>
                       <div className={styles.actions}>
@@ -343,6 +374,7 @@ export function UsersPage() {
                                 form: {
                                   username: user.username,
                                   displayName: user.displayName,
+                                  windowsAccountName: user.windowsAccountName ?? '',
                                 },
                               })
                             }

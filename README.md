@@ -18,7 +18,7 @@
 Installation inventory — **where is what installed**. Which application, at which stage, on
 which machine, behind which DNS name, in which folder.
 
-NX monorepo (pnpm) · .NET 10 + EF Core (code-first) + MSSQL · React 19 + TypeScript + Fluent UI (Vite) · JWT auth.
+NX monorepo (pnpm) · .NET 10 + EF Core (code-first) + MSSQL · React 19 + TypeScript + Fluent UI (Vite) · JWT auth (password, or the browser's Windows account where the server enables it).
 
 ---
 
@@ -153,7 +153,7 @@ Tags ──< InstallationTags >────────┐
 AppRepositories ──< InstallationRepositories >──┴──> ApplicationInstallations
      └──> RepositoryTypes            (svn / git / bitbucket — a lookup, not an enum)
 
-ApplicationUser                    (login)
+ApplicationUser                    (login: password and/or a mapped Windows account)
 
 EntityJournal ──> ApplicationInstallations
                                    (change history: one row per changed field)
@@ -314,7 +314,10 @@ This README is the entry point; everything else is history or reference.
 
 | Method | Route | |
 |---|---|---|
+| GET | `/api/auth/options` | anonymous — whether Windows sign-in is offered |
 | POST | `/api/auth/login` | anonymous |
+| POST | `/api/auth/windows-login` | Negotiate; returns the same JWT as the form |
+| POST | `/api/auth/logout` | recorded in the action log; revokes nothing |
 | GET | `/api/auth/me` | |
 | GET | `/api/installations` | filter, sort, page |
 | GET/POST/PUT/DELETE | `/api/installations/{id}` | delete is soft |

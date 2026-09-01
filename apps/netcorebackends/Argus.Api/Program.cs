@@ -7,6 +7,7 @@ using Argus.Api.Services;
 using log4net;
 using log4net.Config;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.Authentication.Negotiate;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi;
@@ -24,6 +25,7 @@ var connectionString = builder.Configuration.GetConnectionString("ArgusDatabase"
 
 builder.Services.Configure<JwtOptions>(builder.Configuration.GetSection(JwtOptions.SectionName));
 builder.Services.Configure<AuditLogOptions>(builder.Configuration.GetSection(AuditLogOptions.SectionName));
+builder.Services.Configure<WindowsAuthOptions>(builder.Configuration.GetSection(WindowsAuthOptions.SectionName));
 
 var jwtOptions = builder.Configuration.GetSection(JwtOptions.SectionName).Get<JwtOptions>() ?? new JwtOptions();
 
@@ -52,6 +54,9 @@ builder.Services.AddScoped<IAuthService, AuthService>();
 builder.Services.AddScoped<IUserService, UserService>();
 builder.Services.AddScoped<IEntityJournalService, EntityJournalService>();
 
+// Writes to log4net and holds no state of its own.
+builder.Services.AddSingleton<ILoginAuditLog, LoginAuditLog>();
+
 // Stateless and file-backed, so one instance serves every request.
 builder.Services.AddSingleton<ILogFileService, LogFileService>();
 
@@ -59,9 +64,17 @@ builder.Services.AddSingleton<ILogFileService, LogFileService>();
 // log4net's file-count rolling cannot express.
 builder.Services.AddHostedService<LogRetentionService>();
 
-// --- Authentication (username + password -> JWT; no Windows/Negotiate in Argus) ---
+// --- Authentication ---
+// Two ways in, one kind of session: both the password form and the Windows handshake end at a
+// JWT, so every endpoint but `/api/auth/windows-login` only ever sees a bearer token.
+//
+// Negotiate is registered unconditionally because an endpoint's authentication scheme is fixed at
+// startup, while `WindowsAuth:Enabled` is a setting; the switch is enforced in AuthController,
+// which refuses the endpoint and hides the button when it is off. Registering the handler costs
+// nothing until something actually negotiates against it.
 builder.Services
     .AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
+    .AddNegotiate()
     .AddJwtBearer(options =>
     {
         options.TokenValidationParameters = new TokenValidationParameters
@@ -89,7 +102,11 @@ builder.Services.AddCors(options =>
     options.AddPolicy(DevCorsPolicy, policy => policy
         .WithOrigins(allowedOrigins)
         .AllowAnyHeader()
-        .AllowAnyMethod());
+        .AllowAnyMethod()
+        // The Windows handshake travels on the request itself, so the browser only sends it when
+        // credentials are allowed. Safe next to WithOrigins — it is the wildcard origin that
+        // credentials may not be combined with.
+        .AllowCredentials());
 });
 
 builder.Services.AddControllers();

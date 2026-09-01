@@ -1,6 +1,8 @@
 using System.Diagnostics;
+using System.Security.Claims;
 using System.Text;
 using System.Text.RegularExpressions;
+using Argus.Api.Services;
 using log4net;
 using Microsoft.AspNetCore.Http.Extensions;
 using Microsoft.AspNetCore.Routing;
@@ -13,12 +15,17 @@ namespace Argus.Api.Middleware;
 /// The point of this log is that it records the *command that was actually sent*, not the
 /// fact that something happened. "Installation updated" is useless three weeks later;
 /// `PUT /api/installations/14 {"machineId":28,...}` is the answer. Every line has the same
-/// four bracketed fields so the file stays greppable and splittable:
+/// five bracketed fields so the file stays greppable and splittable:
 ///
-///     [timestamp] [action] [command] [status]
+///     [timestamp] [action] [command] [status] [actor]
 ///
 /// The timestamp is prepended by the log4net layout (see the AuditFile appender), the other
-/// three are built here.
+/// four are built here.
+///
+/// The actor is the signed-in user and the way that session was established — `jnovak (Windows)`
+/// — because with two ways into Argus the username alone no longer says how the request came to
+/// be trusted. The sign-in itself is recorded in more detail by
+/// <see cref="Services.LoginAuditLog"/>, into this same file.
 /// </summary>
 public class ActionAuditLoggingMiddleware
 {
@@ -70,7 +77,8 @@ public class ActionAuditLoggingMiddleware
         finally
         {
             stopwatch.Stop();
-            auditLog.Info($"[{ResolveAction(context)}] [{command}] [{DescribeStatus(context)}]");
+            auditLog.Info(
+                $"[{ResolveAction(context)}] [{command}] [{DescribeStatus(context)}] [{DescribeActor(context)}]");
         }
     }
 
@@ -153,6 +161,25 @@ public class ActionAuditLoggingMiddleware
     /// </summary>
     private static string Flatten(string value) =>
         value.Replace("\r", string.Empty).Replace("\n", " ");
+
+    /// <summary>
+    /// Who the request was authenticated as, and how they signed in. Anonymous requests — the
+    /// login call itself among them — say so rather than leaving the field empty; a blank column
+    /// in an audit trail reads as a defect.
+    /// </summary>
+    private static string DescribeActor(HttpContext context)
+    {
+        var username = context.User.FindFirstValue(ClaimTypes.Name);
+
+        if (string.IsNullOrWhiteSpace(username))
+        {
+            return "anonymous";
+        }
+
+        var method = context.User.FindFirstValue(ArgusClaimTypes.AuthenticationMethod);
+
+        return string.IsNullOrWhiteSpace(method) ? username : $"{username} ({method})";
+    }
 
     private static string DescribeStatus(HttpContext context)
     {

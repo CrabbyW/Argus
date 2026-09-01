@@ -25,12 +25,34 @@ public class AuthServiceTests
         TokenLifetimeMinutes = 480
     };
 
-    private static AuthService NewService(ArgusDbContext db) =>
-        new(db, Microsoft.Extensions.Options.Options.Create(Options));
-
-    private static void AddUser(ArgusDbContext db, string username = "msfadmin", bool isEnabled = true)
+    /// <summary>The context every attempt in these tests comes from; only the log reads it.</summary>
+    private static LoginContextDto Context => new()
     {
-        var (hash, salt) = PasswordHasher.HashPassword(Password);
+        IpAddress = "127.0.0.1",
+        UserAgent = "xunit"
+    };
+
+    private static AuthService NewService(ArgusDbContext db, WindowsAuthOptions? windowsAuth = null) =>
+        new(
+            db,
+            Microsoft.Extensions.Options.Options.Create(Options),
+            Microsoft.Extensions.Options.Options.Create(windowsAuth ?? new WindowsAuthOptions()),
+            new LoginAuditLog());
+
+    private static void AddUser(
+        ArgusDbContext db,
+        string username = "msfadmin",
+        bool isEnabled = true,
+        string? windowsAccountName = null,
+        bool withPassword = true)
+    {
+        string? hash = null;
+        string? salt = null;
+
+        if (withPassword)
+        {
+            (hash, salt) = PasswordHasher.HashPassword(Password);
+        }
 
         db.ApplicationUsers.Add(new ApplicationUser
         {
@@ -38,6 +60,7 @@ public class AuthServiceTests
             DisplayName = "Argus Administrator",
             PasswordHash = hash,
             PasswordSalt = salt,
+            WindowsAccountName = windowsAccountName,
             IsEnabled = isEnabled
         });
 
@@ -80,7 +103,7 @@ public class AuthServiceTests
         await using (var db = testDb.NewContext())
         {
             response = await NewService(db).LoginAsync(
-                new LoginRequestDto { Username = "msfadmin", Password = Password });
+                new LoginRequestDto { Username = "msfadmin", Password = Password }, Context);
         }
 
         Assert.NotNull(response);
@@ -112,7 +135,7 @@ public class AuthServiceTests
         await using (var db = testDb.NewContext())
         {
             var response = await NewService(db).LoginAsync(
-                new LoginRequestDto { Username = "msfadmin", Password = "not the password" });
+                new LoginRequestDto { Username = "msfadmin", Password = "not the password" }, Context);
 
             Assert.Null(response);
         }
@@ -126,7 +149,7 @@ public class AuthServiceTests
         await using var db = testDb.NewContext();
 
         var response = await NewService(db).LoginAsync(
-            new LoginRequestDto { Username = "nobody", Password = Password });
+            new LoginRequestDto { Username = "nobody", Password = Password }, Context);
 
         Assert.Null(response);
     }
@@ -148,7 +171,7 @@ public class AuthServiceTests
         await using (var db = testDb.NewContext())
         {
             var response = await NewService(db).LoginAsync(
-                new LoginRequestDto { Username = "retired", Password = Password });
+                new LoginRequestDto { Username = "retired", Password = Password }, Context);
 
             Assert.Null(response);
         }
@@ -171,7 +194,7 @@ public class AuthServiceTests
 
         await using (var db = testDb.NewContext())
         {
-            await NewService(db).LoginAsync(new LoginRequestDto { Username = "msfadmin", Password = Password });
+            await NewService(db).LoginAsync(new LoginRequestDto { Username = "msfadmin", Password = Password }, Context);
         }
 
         await using (var assert = testDb.NewContext())
@@ -204,6 +227,182 @@ public class AuthServiceTests
             Assert.Equal("Argus Administrator", current.DisplayName);
 
             Assert.Null(await service.GetCurrentUserAsync("nobody"));
+        }
+    }
+
+    /* ───────────────────── Windows sign-in ───────────────────── */
+
+    [Fact]
+    public async Task A_mapped_windows_account_signs_in_as_its_argus_user()
+    {
+        using var testDb = TestDb.CreateSeeded();
+
+        await using (var db = testDb.NewContext())
+        {
+            AddUser(db, "jnovak", windowsAccountName: @"CORP\jnovak", withPassword: false);
+        }
+
+        LoginResponseDto? response;
+
+        await using (var db = testDb.NewContext())
+        {
+            response = await NewService(db).WindowsLoginAsync(@"CORP\jnovak", Context);
+        }
+
+        Assert.NotNull(response);
+        Assert.Equal("jnovak", response.Username);
+        Assert.Equal(AuthenticationMethod.Windows, response.AuthenticationMethod);
+        Assert.Equal(@"CORP\jnovak", response.WindowsAccountName);
+
+        // The token is the same kind the password form issues, and it carries how it was obtained.
+        var principal = Validate(response.Token);
+
+        Assert.Equal("jnovak", principal.FindFirst(ClaimTypes.Name)?.Value);
+        Assert.Equal("Windows", principal.FindFirst(ArgusClaimTypes.AuthenticationMethod)?.Value);
+        Assert.Equal(@"CORP\jnovak", principal.FindFirst(ArgusClaimTypes.WindowsAccountName)?.Value);
+    }
+
+    /// <summary>Windows compares account names case-insensitively, so Argus has to as well.</summary>
+    [Fact]
+    public async Task The_windows_account_is_matched_regardless_of_case()
+    {
+        using var testDb = TestDb.CreateSeeded();
+
+        await using (var db = testDb.NewContext())
+        {
+            AddUser(db, "jnovak", windowsAccountName: @"CORP\jnovak", withPassword: false);
+        }
+
+        await using (var db = testDb.NewContext())
+        {
+            Assert.NotNull(await NewService(db).WindowsLoginAsync(@"corp\JNovak", Context));
+        }
+    }
+
+    [Fact]
+    public async Task An_unmapped_windows_account_is_refused_when_auto_provisioning_is_off()
+    {
+        using var testDb = TestDb.CreateSeeded();
+
+        await using var db = testDb.NewContext();
+
+        Assert.Null(await NewService(db).WindowsLoginAsync(@"CORP\stranger", Context));
+        Assert.False(await db.ApplicationUsers.AnyAsync());
+    }
+
+    [Fact]
+    public async Task An_unmapped_windows_account_is_provisioned_when_that_is_turned_on()
+    {
+        using var testDb = TestDb.CreateSeeded();
+        var options = new WindowsAuthOptions { Enabled = true, AutoProvisionUsers = true };
+
+        await using (var db = testDb.NewContext())
+        {
+            var response = await NewService(db, options).WindowsLoginAsync(@"CORP\jnovak", Context);
+
+            Assert.NotNull(response);
+            // The domain form is the mapping; the short name is the Argus username.
+            Assert.Equal("jnovak", response.Username);
+        }
+
+        await using (var assert = testDb.NewContext())
+        {
+            var user = await assert.ApplicationUsers.SingleAsync();
+
+            Assert.Equal(@"CORP\jnovak", user.WindowsAccountName);
+            Assert.Null(user.PasswordHash);
+            Assert.Equal("Windows", user.LastLoginMethod);
+        }
+    }
+
+    /// <summary>
+    /// Auto-provisioning must not hand a domain account someone else's existing Argus user just
+    /// because the short names match.
+    /// </summary>
+    [Fact]
+    public async Task Auto_provisioning_refuses_a_username_that_is_already_taken()
+    {
+        using var testDb = TestDb.CreateSeeded();
+        var options = new WindowsAuthOptions { Enabled = true, AutoProvisionUsers = true };
+
+        await using (var db = testDb.NewContext())
+        {
+            AddUser(db, "jnovak");
+        }
+
+        await using (var db = testDb.NewContext())
+        {
+            Assert.Null(await NewService(db, options).WindowsLoginAsync(@"CORP\jnovak", Context));
+        }
+
+        await using (var assert = testDb.NewContext())
+        {
+            Assert.Null(await assert.ApplicationUsers.Select(x => x.WindowsAccountName).SingleAsync());
+        }
+    }
+
+    [Fact]
+    public async Task A_disabled_user_cannot_sign_in_with_windows_either()
+    {
+        using var testDb = TestDb.CreateSeeded();
+
+        await using (var db = testDb.NewContext())
+        {
+            AddUser(db, "retired", isEnabled: false, windowsAccountName: @"CORP\retired");
+        }
+
+        await using (var db = testDb.NewContext())
+        {
+            Assert.Null(await NewService(db).WindowsLoginAsync(@"CORP\retired", Context));
+        }
+    }
+
+    /// <summary>
+    /// A Windows-only account has no password hash to compare against, and "no password set" must
+    /// never be an accepted password.
+    /// </summary>
+    [Fact]
+    public async Task A_windows_only_user_cannot_sign_in_through_the_password_form()
+    {
+        using var testDb = TestDb.CreateSeeded();
+
+        await using (var db = testDb.NewContext())
+        {
+            AddUser(db, "jnovak", windowsAccountName: @"CORP\jnovak", withPassword: false);
+        }
+
+        await using (var db = testDb.NewContext())
+        {
+            var response = await NewService(db).LoginAsync(
+                new LoginRequestDto { Username = "jnovak", Password = string.Empty }, Context);
+
+            Assert.Null(response);
+        }
+    }
+
+    [Fact]
+    public async Task A_password_login_is_recorded_as_one()
+    {
+        using var testDb = TestDb.CreateSeeded();
+
+        await using (var db = testDb.NewContext())
+        {
+            AddUser(db);
+        }
+
+        await using (var db = testDb.NewContext())
+        {
+            var response = await NewService(db).LoginAsync(
+                new LoginRequestDto { Username = "msfadmin", Password = Password }, Context);
+
+            Assert.NotNull(response);
+            Assert.Equal(AuthenticationMethod.Password, response.AuthenticationMethod);
+            Assert.Null(response.WindowsAccountName);
+        }
+
+        await using (var assert = testDb.NewContext())
+        {
+            Assert.Equal("Password", await assert.ApplicationUsers.Select(x => x.LastLoginMethod).SingleAsync());
         }
     }
 }
